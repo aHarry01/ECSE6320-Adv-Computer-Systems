@@ -6,7 +6,7 @@ For questions 1-3, we used Intel Memory Latency Checker (mlc) to gather data (se
 
 To measure memory latency with no queueing delay, we used the --idle_latency option of mlc, which measures the read latency with no contention from other threads accessing memory. We can change the buffer size to indirectly change whether it's measuring cache or main memory latency. The graph shows the measured idle read latencies for various buffer sizes.  
 
-![alt text](images/idle_latency.png)
+<p align="center"> <img src="images/idle_latency.png" alt="drawing" width="75%"/> </p>
 
 The computer on which we gathered data has 8MB of L3 cache, 3MB of L2 and 384 KB of L1 cache. Latency begins to fall at around 4-8MB buffer size as the buffer becomes smaller than the cache. At the smallest buffer size of 0.25MiB, the entire buffer can fit in L1 cache so we can assume that this latency is the cache latency. Similarly, the latency at large buffer sizes is approximately the latency of main memory because only a very small percentage of the memory accesses are able to be from cache.
 
@@ -21,14 +21,13 @@ The maximum bandwidth was measured with the --max_bandwidth option of mlc which 
 
 TODO: why is writing slower?
 
-![alt text](images/bandwidth_rw.png)
+<p align="center"> <img src="images/bandwidth_rw.png" alt="drawing" width="75%"/> </p>
 
 The maximum bandwidth was also measured with different data access granularities, which was adjusted with the -l stride size option. This data was gathered using all reads. The graph shows that the bandwidth is highest with a 64 byte stride size and drops as stride size increases
 
 TODO: why?
 
-![alt text](images/bandwidth_stride_size.png)
-
+<p align="center"> <img src="images/bandwidth_stride_size.png" alt="drawing" width="75%"/> </p>
 
 ### 3.) Latency vs Throughput
 
@@ -38,7 +37,7 @@ We found that the latency increases with the bandwidth. Below 10,000MiB/s, the l
 
 This aligns with what the queueing theory predicts. With higher bandwidths the memory server is almost never idle, so the server utilization is high. However, this increases the queue length, which results in a higher latency as each memory access request needs to wait in that longer queue.
 
-![alt text](images/latency_bandwidth.png)
+<p align="center"> <img src="images/latency_bandwidth.png" alt="drawing" width="75%"/> </p>
 
 
 ### 4.)
