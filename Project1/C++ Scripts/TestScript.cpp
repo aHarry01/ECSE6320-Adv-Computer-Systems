@@ -40,16 +40,16 @@ int main() {
   //Test the methods' times
   int testLoops = 1;
   vector<int> method1Times, method2Times;
-  for(int i = testLoops; i < 10000; i*=10) {
+  for(int loop = testLoops; loop <= 1000; loop*=10) {
     auto start_method1 = chrono::high_resolution_clock::now();
-    for(int i = 0; i < testLoops; i++) {
+    for(int i = 0; i < loop; i++) {
       method1(grid, R, C);
     }
     auto stop_method1 = chrono::high_resolution_clock::now();
     auto duration_method1 = chrono::duration_cast<std::chrono::milliseconds>(stop_method1 - start_method1).count();
 
     auto start_method2 = chrono::high_resolution_clock::now();
-    for(int i = 0; i < testLoops; i++) {
+    for(int i = 0; i < loop; i++) {
       method2(grid, R, C);
     }
     auto stop_method2 = chrono::high_resolution_clock::now();
@@ -63,12 +63,10 @@ int main() {
   std::ofstream outFile;
   outFile.open("../Problem4_Time.csv");
   outFile << "Method_1_Time,Method_2_Time\n";
-
   // Write data
   for(int i=0; i<5; i++) {
     outFile << method1Times[i] << "," << method2Times[i] << "\n";
   }
   outFile.close();
-
   return 0;  
 }
