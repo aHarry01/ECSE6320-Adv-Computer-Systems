@@ -1,5 +1,7 @@
 #include <iostream>
+#include <fstream>
 #include <chrono>
+#include <vector>
 using namespace std;
 
 const int R = 2000;
@@ -35,23 +37,38 @@ int main() {
     }
   }
 
+  //Test the methods' times
+  int testLoops = 1;
+  vector<int> method1Times, method2Times;
+  for(int i = testLoops; i < 10000; i*=10) {
+    auto start_method1 = chrono::high_resolution_clock::now();
+    for(int i = 0; i < testLoops; i++) {
+      method1(grid, R, C);
+    }
+    auto stop_method1 = chrono::high_resolution_clock::now();
+    auto duration_method1 = chrono::duration_cast<std::chrono::milliseconds>(stop_method1 - start_method1).count();
 
-  auto start_method1 = chrono::high_resolution_clock::now();
-  for(int i = 0; i < 100; i++) {
-    method1(grid, R, C);
+    auto start_method2 = chrono::high_resolution_clock::now();
+    for(int i = 0; i < testLoops; i++) {
+      method2(grid, R, C);
+    }
+    auto stop_method2 = chrono::high_resolution_clock::now();
+    auto duration_method2 = chrono::duration_cast<std::chrono::milliseconds>(stop_method2 - start_method2).count();
+
+    method1Times.push_back(duration_method1);
+    method2Times.push_back(duration_method2);
   }
-  auto stop_method1 = chrono::high_resolution_clock::now();
-  auto duration_method1 = chrono::duration_cast<std::chrono::milliseconds>(stop_method1 - start_method1).count();
 
-  auto start_method2 = chrono::high_resolution_clock::now();
-  for(int i = 0; i < 100; i++) {
-    method2(grid, R, C);
+  //Export the times to csv
+  std::ofstream outFile;
+  outFile.open("../Problem4_Time.csv");
+  outFile << "Method_1_Time,Method_2_Time\n";
+
+  // Write data
+  for(int i=0; i<5; i++) {
+    outFile << method1Times[i] << "," << method2Times[i] << "\n";
   }
-  auto stop_method2 = chrono::high_resolution_clock::now();
-  auto duration_method2 = chrono::duration_cast<std::chrono::milliseconds>(stop_method2 - start_method2).count();
-
-  cout << "method1 took " << duration_method1 << " milliseconds" << std::endl;
-  cout << "method2 took " << duration_method2 << " milliseconds" << std::endl;
+  outFile.close();
 
   return 0;  
 }
