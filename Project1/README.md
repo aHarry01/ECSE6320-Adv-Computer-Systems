@@ -8,7 +8,7 @@ To measure memory latency with no queueing delay, we used the --idle_latency opt
 
 <p align="center"> <img src="images/idle_latency.png" alt="drawing" width="75%"/> </p>
 
-The computer on which we gathered data has 8MB of L3 cache, 3MB of L2 and 384 KB of L1 cache. Latency begins to fall at around 4-8MB buffer size as the buffer becomes smaller than the cache. At the smallest buffer size of 0.25MiB, the entire buffer can fit in L1 cache so we can assume that this latency is the cache latency. Similarly, the latency at large buffer sizes is approximately the latency of main memory because only a very small percentage of the memory accesses are able to be from cache.
+The computer on which we gathered this data has 8MB of L3 cache, 3MB of L2 and 384 KB of L1 cache. Latency begins to fall at around 4-8MB buffer size as the buffer becomes smaller than the cache. At the smallest buffer size of 0.25MiB, the entire buffer can fit in L1 cache so we can assume that this latency is the cache latency. Similarly, the latency at large buffer sizes is approximately the latency of main memory because only a very small percentage of the memory accesses are able to be from cache.
 
 Therefore, L1 cache read latency is about 3ns (measured with a 0.25MiB buffer) and main memory read latency is about 109.4ns (measured with a 4096MiB buffer).
 
