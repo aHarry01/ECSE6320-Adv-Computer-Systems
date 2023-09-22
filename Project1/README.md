@@ -55,5 +55,9 @@ Method 2 access the array in Col-Row order, in theory it should have a higher mi
 Method 3 combines the previous two methods.
 <p align="center"> <img src="images/Q4_method3.png" alt="drawing" width="75%"/> </p>
 
+Below is the performance of each method of executing the methods repeatedly:
+<p align="center"> <img src="images/Q4_time_result.png" alt="drawing" width="75%"/> </p>
+
+From the graph, it can be observed that method 1 has nearly double the performance of method 2. The reason for that is because array can be read each "row" continuously, but reading data from another row, array[0][0] -> array[1][0], for example, require reading from another address that is not sequential. This leads to more read operations and higher cache miss ratio. 
 
 ### 5.)
