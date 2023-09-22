@@ -41,7 +41,8 @@ This aligns with what the queueing theory predicts. With higher bandwidths the m
 
 
 ### 4.)
-For Q4, we tried a couple of ways to obtain the cache miss and miss ratio on Windows system. The linux perf command can be used on WSL, but hardware events are not supported. Therefore, we used valgrind to simulate a cache result.
+For Q4, we tried a couple of ways to obtain the cache miss and miss ratio on Windows system. The linux perf command can be used on WSL, but all hardware events are not supported. Therefore, we used valgrind to simulate a cache result.
+<p align="center"> <img src="images/Q4_perf.jpg" alt="drawing" width="75%"/> </p>
 
 We designed our code to loop through a 2000 * 1024 2D array in three methods of different miss ratio. Then, we record the time taken to run the program. The script can be found in C++/TestScript_Q4.cpp.
 
