@@ -56,9 +56,20 @@ Method 2 access the array in Col-Row order, in theory it should have a higher mi
 Method 3 combines the previous two methods.
 <p align="center"> <img src="images/Q4_method3.png" alt="drawing" width="75%"/> </p>
 
-Below is the performance of each method of executing the methods repeatedly:
+Below is the performance of each method of executing the methods repeatedly, time is in milliseconds:
 <p align="center"> <img src="images/Q4_time_result.png" alt="drawing" width="75%"/> </p>
 
 From the graph, it can be observed that method 1 has nearly double the performance of method 2. The reason for that is because array can be read each "row" continuously, but reading data from another row, array[0][0] -> array[1][0], for example, require reading from another address that is not sequential. This leads to more read operations and higher cache miss ratio. 
 
 ### 5.)
+From the official document, we get to know that valgrind-cachegrind tools can't record TLB misses, and that WSL doesn't support any hardware events, so it can't monitor TLB misses either. Therefore, we have to find other ways to observe the influence of TLB misses.
+
+After researching to various ways of triggering TLB misses and TLB improvement plans, we decides to control variables and test the time of reading a file using different methods.
+
+The input file consists of around 1MB of data, and we are using two methods to read it, and the experiment is repeated with different buffer sizes.
+1. Access the file sequentially.
+2. Access the file every other block, i.e. if we devide the whole file into 6 parts, then the order will be 1-3-5-2-4-6.
+More details can be found in TestScript_Q5.cpp. In theory, with everything else the same, reading in non-sequential order will trigger more TLB misses, which leads to more time.
+
+Below is the time result. Valgrind is still used to check that mere cache result is as intended.
+<p align="center"> <img src="images/Q5_time_result.png" alt="drawing" width="75%"/> </p>
