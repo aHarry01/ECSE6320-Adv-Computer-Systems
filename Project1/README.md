@@ -34,7 +34,7 @@ This aligns with what the queueing theory predicts. With higher bandwidths the m
 <p align="center"> <img src="images/latency_bandwidth.png" alt="drawing" width="75%"/> </p>
 
 
-### 4.)
+### 4.) Cache miss effect on software performance
 For Q4, we tried a couple of ways to obtain the cache miss and miss ratio on Windows system. The linux perf command can be used on WSL, but all hardware events are not supported. Therefore, we used valgrind to simulate a cache result.
 <p align="center"> <img src="images/Q4_perf.jpg" alt="drawing" width="75%"/> </p>
 
@@ -55,7 +55,7 @@ Below is the performance of each method of executing the methods repeatedly, tim
 
 From the graph, it can be observed that method 1 has nearly double the performance of method 2. The reason for that is because array can be read each "row" continuously, but reading data from another row, array[0][0] -> array[1][0], for example, require reading from another address that is not sequential. This leads to more read operations and higher cache miss ratio. 
 
-### 5.)
+### 5.) TLB miss effect on software operation
 From the official document, we get to know that valgrind-cachegrind tools can't record TLB misses, and that WSL doesn't support any hardware events, so it can't monitor TLB misses either. Therefore, we have to find other ways to observe the influence of TLB misses.
 
 After researching to various ways of triggering TLB misses and TLB improvement plans, we decides to control variables and test the time of reading a file using different methods.
