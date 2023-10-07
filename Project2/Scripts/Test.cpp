@@ -5,14 +5,19 @@
 #include <memory.h>
 #include <stdexcept>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 using namespace std;
 
 // A mutex to protect shared data
 pthread_mutex_t mutex;
-const int NUM_THREADS = 4;
-int** res;
+
+
 
 typedef struct PartialMatrix{
+// Only one col and one row
 public:
     int* rowArr;
     int* colArr;
@@ -20,8 +25,7 @@ public:
     int** FINAL_RESULT;
     int i;
 
-    void print(int i){
-        if(i!= 1) return;
+    void print( ){
         cout << "i: " << i << " rIndex: " << rIndex << " cIndex: " << cIndex << " rcLenth: " << rcLenth << endl;
         cout << "rowArr: " << rowArr[0] << " " << rowArr[1] << endl;
         cout << "colArr: " << colArr[0] << " " << colArr[1] << endl;
@@ -36,8 +40,6 @@ void* rc_Multiplication(void* arg) {
     int* rowArr = p->rowArr, *colArr = p->colArr;
     int** RESULT_MATRIX = p->FINAL_RESULT;
     int count = p->i;
-
-    p->print(count);
 
     // Calculate the result of row*colume by element
     int res = 0;
@@ -58,15 +60,52 @@ void* rc_Multiplication(void* arg) {
     return NULL;
 }
 
-int main() {
+int** readMatrix(string fileName){
+    ifstream inf;
+    string line;
+    inf.open(fileName);
+    int n;
+    vector<vector<int>> content;
+    while(getline(inf, line)){
+        vector<int> tmp;
+        stringstream iss(line);
+        while (iss >> n)
+        {
+            tmp.push_back(n);
+        }
+        content.push_back(tmp);
+    }
+    inf.close();
+
+    n = content.size();
+    int m = content[0].size();
+    int** res = new int*[n];
+    for(int i = 0; i < n; i++){
+        res[i] = new int[m];
+        for(int j = 0; j < m; j++){
+            res[i][j] = content[i][j];
+        }
+    }
+    return res;
+}
+
+int main(int argc, char* argv[]) {
+    // argv Parameters: [1]: number of threads; [2]: Matrix1; [3]: Matrix2
+    if (argc != 4){
+        cout << "Usage: ./rc_Multiplication [number of threads] [Matrix1] [Matrix2]" << endl;
+        return 0;
+    }
+    const int NUM_THREADS = stoi(argv[1]);
+    int** M1 = readMatrix(argv[2]);
+    int** M2 = readMatrix(argv[3]);
+
     // Initialize the mutex
     pthread_mutex_init(&mutex, NULL);
 
     // The two matrix to be multiplied and the place to store the answer
-    int M1[2][2] = {{1, 2}, {3, 4}};
-    int M2[2][2] = {{5, 6}, {7, 8}};
     int tmp1[] = {M2[0][0], M2[1][0]};
     int tmp2[] = {M2[0][1], M2[1][1]};
+    int** res;
     res = new int*[2];
     res[0] = new int[2];
     res[1] = new int[2];
@@ -115,6 +154,12 @@ int main() {
     }    
     // Destroy the mutex
     pthread_mutex_destroy(&mutex);
-
+    
+    delete res[0];
+    delete res[1];
+    delete M1[0];
+    delete M1[1];
+    delete M2[0];
+    delete M2[1];
     return 0;
 }
