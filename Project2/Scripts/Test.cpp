@@ -60,7 +60,7 @@ int** readMatrix(string fileName, int r, int c){
     string line;
     int i=0, j, n;
     int** res = new int*[r];
-    for(int i = 0; i < n; i++){
+    for(int i = 0; i < r; i++){
         res[i] = new int[c];
     }
     inf.open(fileName);
@@ -105,9 +105,9 @@ int main(int argc, char* argv[]) {
     int r1 = stoi(argv[4]), c1 = stoi(argv[5]);
     int r2 = stoi(argv[6]), c2 = stoi(argv[7]);
     int** M1 = readMatrix(argv[2], r1, c1);
-    cout << "Matrix1 read..." << endl;
     int** M2T = transposeMatrix(readMatrix(argv[3], r2, c2), r2, c2);   //Transpose of M2
-    cout << "Matrix2 read and processed" << endl;
+
+    cout << "Matrices read and processed" << endl;
 
     // Initialize the mutex
     pthread_mutex_init(&mutex, NULL);
@@ -124,8 +124,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    cout << "Result matrix initialized..." << endl;
-
     //Initialize all partial matrices
     int rowsRerThread = r1/NUM_THREADS; // The task was to multiply big matrices, so we assume that r1 >> NUM_THREADS
     pthread_t threads[NUM_THREADS];
@@ -139,11 +137,10 @@ int main(int argc, char* argv[]) {
         p[i].FINAL_RESULT = res;
     }
 
-    cout << "Partial mateix created..." << endl;
+    cout << "Partial matrices  created..." << endl;
 
     // Create threads
     for(int i = 0; i < NUM_THREADS; i++){
-        cout << "Thread " << i << " is creating..." << endl;
         pthread_create(&threads[i], NULL, rc_Multiplication, &p[i]);
     }
     cout << "Threads are created..." << endl;
