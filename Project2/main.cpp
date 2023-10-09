@@ -108,9 +108,9 @@ void transposeMatrix(Matrix &M){
 
 
 // ---- SIMD functions ----
-void simd_matrix_multiply(Matrix &m1, Matrix &m2, float** result){
+void simd_matrix_multiply(Matrix &m1, Matrix &m2, float** result, bool m2_is_transpose){
 	
-	int num_full_ops = m2.width / 8; // number of full 8 word vectorized operations needed per operation
+	int num_full_ops = m2.width / 8; // number of full 8 word vectorized operations needed per row
 	// if the number of elements in 1 row of m1 isn't a multiple of 8,
 	// then need to do a partial vector operation at the end
 	int leftover = m2.width % 8; // number of "leftover" bytes at the end of each output row
@@ -126,7 +126,9 @@ void simd_matrix_multiply(Matrix &m1, Matrix &m2, float** result){
 	__m256 col;
 	__m256 row;
 
-	transposeMatrix(m2);
+    if (!m2_is_transpose){
+        transposeMatrix(m2);
+    }
 
 	// Loop through each location in the output array and calculate it
 	for(int r1 = 0; r1 < m1.height; r1++){	
@@ -154,28 +156,29 @@ void simd_matrix_multiply(Matrix &m1, Matrix &m2, float** result){
 			// take care of any elements beyond the multiple of 8
 			if (leftover != 0){
 				row = _mm256_loadu_ps(&m1.data[r1][m1.width-leftover]);
-				col = _mm256_loadu_ps(&m2.data[c2][m1.height-leftover]);
+				col = _mm256_loadu_ps(&m2.data[c2][m2.width-leftover]);
                 fmadd_result = _mm256_fmadd_ps(row, col, fmadd_result);
 				_mm256_storeu_ps(temp, fmadd_result);
 				for (int i = 0; i < leftover; i++){
-					result[r1][c2] += temp[i];
+					result[r1][c2] += temp[i];     
 				}
+
 			}
 		}
 	}
 }
 
 // ---- Multithreading functions ----
-// The thread function
+// The basic thread function
 void* rc_Multiplication(void* arg) {
     PartialMatrix* p = (PartialMatrix*)arg;
     int rIndex = p->rIndex, rLength = p->rLength, cLength = p->cLength;
     float** rows = p->rows, **M2T = p->M2T, **FINAL_RESULT = p->FINAL_RESULT;
 
-    int partialRes[rLength][cLength];
+    float partialRes[rLength][cLength];
     for(int i = 0; i < rLength; i++){
         for(int j = 0; j < cLength; j++){
-            int tmp = 0;
+            float tmp = 0;
             for(int k = 0; k < cLength; k++){
                 tmp += rows[i][k] * M2T[j][k];
             }
@@ -196,7 +199,43 @@ void* rc_Multiplication(void* arg) {
     return NULL;
 }
 
-void threading_matrix_mutliply(Matrix &m1, Matrix &m2, float** result, const int NUM_THREADS){
+// The thread function that uses SIMD instructions
+void* rc_SIMD_Multiplication(void* arg) {
+    PartialMatrix* p = (PartialMatrix*)arg;
+    int rIndex = p->rIndex, rLength = p->rLength, cLength = p->cLength;
+    float** rows = p->rows, **M2T = p->M2T, **FINAL_RESULT = p->FINAL_RESULT;
+
+    float** partialRes = new float*[rLength];
+    for(int i = 0; i < rLength; i++){
+        partialRes[i] = new float[cLength]();
+    }
+    Matrix m1 = {rows, rLength, cLength};
+    Matrix m2T = {M2T, cLength, cLength};
+
+    // use SIMD matrix mult method on this sub-matrix
+    simd_matrix_multiply(m1, m2T, partialRes, true);
+
+    // Lock the mutex before accessing shared data
+    pthread_mutex_lock(&mutex);
+    // Access shared data
+    for(int i = 0, r = rIndex; i < rLength; i++, r++){
+        for(int j = 0; j < cLength; j++){
+            FINAL_RESULT[r][j] = partialRes[i][j];
+        }
+    }
+    // Unlock the mutex
+    pthread_mutex_unlock(&mutex);
+
+    for(int i = 0; i < rLength; i++){
+        delete[] partialRes[i];
+    }
+    delete[] partialRes;
+
+    return NULL;
+}
+
+// Threading matrix multiply with the option to use SIMD instructions as well
+void threading_matrix_mutliply(Matrix &m1, Matrix &m2, float** result, const int NUM_THREADS, bool use_SIMD){
     // Initialize the mutex
     pthread_mutex_init(&mutex, NULL);
 
@@ -216,9 +255,16 @@ void threading_matrix_mutliply(Matrix &m1, Matrix &m2, float** result, const int
     }
 
     // Create threads
-    for(int i = 0; i < NUM_THREADS; i++){
-        pthread_create(&threads[i], NULL, rc_Multiplication, &p[i]);
+    if (use_SIMD){
+        for(int i = 0; i < NUM_THREADS; i++){
+            pthread_create(&threads[i], NULL, rc_SIMD_Multiplication, &p[i]);
+        }
+    } else {
+        for(int i = 0; i < NUM_THREADS; i++){
+            pthread_create(&threads[i], NULL, rc_Multiplication, &p[i]);
+        }
     }
+
 
     // Wait for threads to finish
     for(int i = 0; i < NUM_THREADS; i++){
@@ -250,17 +296,17 @@ void basic_matrix_multiply(Matrix &m1, Matrix &m2, float** result){
 
 
 int main(int argc, char* argv[]){
-    // argv parameters: [1] Matrix1 file, [2] Matrix2 file
-    //                  [3] use SIMD (0 or 1), [4] use multithreading (0 or 1), [5] minimize cache miss rate (0 or 1)
-    //                  [6] number of threads, [7] output file
+    // argv params: [1] Matrix1 file, [2] Matrix2 file
+    //              [3] use multithreading (0 or 1), [4] use SIMD (0 or 1), [5] minimize cache miss rate (0 or 1)
+    //              [6] number of threads, [7] output file
     if (argc != 8){
-        std::cout << "err" << std::endl;
+        std::cout << "Wrong number of instructions" << std::endl;
         //Output an error about number of arguments or can't multiply matrices
         return 0;
     }
     const int NUM_THREADS = stoi(argv[6]);
-    const int use_SIMD = stoi(argv[3]);
-    const int use_Threads = stoi(argv[4]);
+    const int use_Threads = stoi(argv[3]);
+    const int use_SIMD = stoi(argv[4]);
     const int use_CacheMiss = stoi(argv[5]);
 
     // Read in matrices
@@ -289,11 +335,11 @@ int main(int argc, char* argv[]){
     auto start = std::chrono::high_resolution_clock::now();
     if (!use_SIMD && !use_Threads && !use_CacheMiss){
         basic_matrix_multiply(M1, M2, res);
-    } else if (use_SIMD){
-        simd_matrix_multiply(M1, M2, res);
     } else if (use_Threads){
-        threading_matrix_mutliply(M1, M2, res, NUM_THREADS);
-    }
+        threading_matrix_mutliply(M1, M2, res, NUM_THREADS, (bool) use_SIMD);
+    } else if (use_SIMD){
+        simd_matrix_multiply(M1, M2, res, false);
+    }  
 
 	auto finish = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = finish - start;
