@@ -20,35 +20,36 @@ typedef struct PartialMatrix{
 // Only one col and one row
 public:
     int** rows;
-    int** cols;
+    int** M2T;
     int rIndex, rLenth, cLength;
     int** FINAL_RESULT;
-    int i;
 } PartialMatrix;
 
 // The thread function
 void* rc_Multiplication(void* arg) {
     PartialMatrix* p = (PartialMatrix*)arg;
-    //TO DO: adjust the parameters to the correct versions based on PartialMatrix
-    int r = p->rIndex, c = p->cIndex, len = p->rcLenth;
-    int* rowArr = p->rowArr, *colArr = p->colArr;
-    int** RESULT_MATRIX = p->FINAL_RESULT;
-    int count = p->i;
+    int rIndex = p->rIndex, rLenth = p->rLenth, cLength = p->cLength;
+    int** rows = p->rows, **M2T = p->M2T, **FINAL_RESULT = p->FINAL_RESULT;
 
-    // Calculate the result of row*colume by element
-    int res = 0;
-    for(int i = 0; i < len; i++){
-        res += rowArr[i] * colArr[i];
-    }
-
-    if(RESULT_MATRIX[r][c] != 0){
-        throw runtime_error("The place to write the result has value..." + to_string(r) + " " + to_string(c));
+    int partialRes[rLenth][cLength];
+    for(int i = 0; i < rLenth; i++){
+        for(int j = 0; j < cLength; j++){
+            int tmp = 0;
+            for(int k = 0; k < cLength; k++){
+                tmp += rows[i][k] * M2T[j][k];
+            }
+            partialRes[i][j] = tmp;
+        }
     }
 
     // Lock the mutex before accessing shared data
     pthread_mutex_lock(&mutex);
     // Access shared data
-    RESULT_MATRIX[r][c] = res;
+    for(int i = 0, r = rIndex; i < rLenth; i++, r++){
+        for(int j = 0; j < cLength; j++){
+            FINAL_RESULT[r][j] = partialRes[i][j];
+        }
+    }
     // Unlock the mutex
     pthread_mutex_unlock(&mutex); 
     return NULL;
@@ -90,27 +91,28 @@ int** transposeMatrix(int** M, int r, int c){
     for(int i = 0; i < r; i++){
         delete[] M[i];
     }
+    return T;
 }
 
 int main(int argc, char* argv[]) {
     // argv Parameters: [1]: number of threads; [2]: Matrix1; [3]: Matrix2; 
     // [4]: Matrix1_r; [5]: Matrix1_c; [6]: Matrix2_r; [7]: Matrix2_c;
-    if (argc != 8){
-        cout << "Usage: ./rc_Multiplication [number of threads] [Matrix1] [Matrix2]" << endl;
+    if (argc != 8 || stoi(argv[5])!= stoi(argv[6])){
+        //Output an error about number of arguments or can't multiply matrices
         return 0;
     }
     const int NUM_THREADS = stoi(argv[1]);
     int r1 = stoi(argv[4]), c1 = stoi(argv[5]);
     int r2 = stoi(argv[6]), c2 = stoi(argv[7]);
     int** M1 = readMatrix(argv[2], r1, c1);
-    int** M2 = transposeMatrix(readMatrix(argv[3], r2, c2), r2, c2);
+    cout << "Matrix1 read..." << endl;
+    int** M2T = transposeMatrix(readMatrix(argv[3], r2, c2), r2, c2);   //Transpose of M2
+    cout << "Matrix2 read and processed" << endl;
 
     // Initialize the mutex
     pthread_mutex_init(&mutex, NULL);
 
-    // The two matrix to be multiplied and the place to store the answer
-    int tmp1[] = {M2[0][0], M2[1][0]};
-    int tmp2[] = {M2[0][1], M2[1][1]};
+    // Initialize the result matrix
     int** res;
     res = new int*[r1];
     for(int i = 0; i < r1; i++){
@@ -121,13 +123,27 @@ int main(int argc, char* argv[]) {
             res[i][j] = 0;
         }
     }
-    
-    PartialMatrix p[NUM_THREADS];
+
+    cout << "Result matrix initialized..." << endl;
+
+    //Initialize all partial matrices
+    int rowsRerThread = r1/NUM_THREADS; // The task was to multiply big matrices, so we assume that r1 >> NUM_THREADS
     pthread_t threads[NUM_THREADS];
+    PartialMatrix p[NUM_THREADS];
+    for (int i = 0, r = 0; i < NUM_THREADS; i++, r += rowsRerThread) {
+        p[i].rows = &M1[r];
+        p[i].M2T = M2T;
+        p[i].rIndex = r;
+        p[i].rLenth = i == NUM_THREADS-1 ? r1-r : rowsRerThread;
+        p[i].cLength = c2;
+        p[i].FINAL_RESULT = res;
+    }
+
+    cout << "Partial mateix created..." << endl;
+
     // Create threads
     for(int i = 0; i < NUM_THREADS; i++){
-        //TO DO: redesign the method to asign the partial matrix to threads
-        //To Do: Correct all the partial matrices correctly.
+        cout << "Thread " << i << " is creating..." << endl;
         pthread_create(&threads[i], NULL, rc_Multiplication, &p[i]);
     }
     cout << "Threads are created..." << endl;
@@ -138,8 +154,8 @@ int main(int argc, char* argv[]) {
     }
 
     //Print the result
-    for(int i = 0; i < 2; i++){
-        for(int j = 0; j < 2; j++){
+    for(int i = 0; i < 11; i++){
+        for(int j = 0; j < 11; j++){
             cout << res[i][j] << " ";
         }
         cout << endl;
