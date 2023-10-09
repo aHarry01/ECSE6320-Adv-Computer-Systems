@@ -151,12 +151,13 @@ int main(int argc, char* argv[]) {
     }
 
     //Print the result
-    for(int i = 0; i < 11; i++){
-        for(int j = 0; j < 11; j++){
+    for(int i = 0; i < r1; i++){
+        for(int j = 0; j < c2; j++){
             cout << res[i][j] << " ";
         }
         cout << endl;
-    }    
+    }
+
     // Destroy the mutex
     pthread_mutex_destroy(&mutex);
 
