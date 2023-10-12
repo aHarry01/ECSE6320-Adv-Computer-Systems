@@ -367,5 +367,10 @@ int main(int argc, char* argv[]){
     }
     delete[] M2.data;
 
+    for(int i = 0; i < result.height; i++){
+        delete[] result.data[i];
+    }
+    delete[] result.data;
+
 
 }
