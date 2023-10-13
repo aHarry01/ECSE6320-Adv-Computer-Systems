@@ -168,6 +168,23 @@ void simd_matrix_multiply(Matrix &m1, Matrix &m2, float** result, bool m2_is_tra
 	}
 }
 
+// ---- Minimize cache miss rate ----
+
+void cache_opt_matrix_multiply(Matrix &m1, Matrix &m2, float** result){
+    // transpose m2 first so that the columns become rows and are close together in memory
+    // cache can now take advantage of spatial locality for m2 as well as m1
+	transposeMatrix(m2); 
+
+	for(int r1 = 0; r1 < m1.height; r1++){
+		for(int c2 = 0; c2 < m2.width; c2++){
+			result[r1][c2] = 0;
+			for(int i = 0; i < m1.width; i++){
+				result[r1][c2] += m1.data[r1][i]*m2.data[c2][i];
+			}
+		}
+	}
+}
+
 // ---- Multithreading functions ----
 // The basic thread function
 void* rc_Multiplication(void* arg) {
@@ -293,8 +310,6 @@ void basic_matrix_multiply(Matrix &m1, Matrix &m2, float** result){
 }
 
 
-
-
 int main(int argc, char* argv[]){
     // argv params: [1] Matrix1 file, [2] Matrix2 file
     //              [3] use multithreading (0 or 1), [4] use SIMD (0 or 1), [5] minimize cache miss rate (0 or 1)
@@ -335,11 +350,13 @@ int main(int argc, char* argv[]){
     auto start = std::chrono::high_resolution_clock::now();
     if (!use_SIMD && !use_Threads && !use_CacheMiss){
         basic_matrix_multiply(M1, M2, res);
-    } else if (use_Threads){
+    } else if (use_Threads){ // threading or threading & SIMD
         threading_matrix_mutliply(M1, M2, res, NUM_THREADS, (bool) use_SIMD);
-    } else if (use_SIMD){
+    } else if (use_SIMD){ // just SIMD
         simd_matrix_multiply(M1, M2, res, false);
-    }  
+    } else if (use_CacheMiss){ // just cache miss
+        cache_opt_matrix_multiply(M1, M2, res);
+    }
 
 	auto finish = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = finish - start;
