@@ -3,6 +3,7 @@
 ## Implementations
 
 ### Threading
+we use the build in multi-thread library for linux to do multi-thread calculations. 
 
 ### SIMD
 We used the AVX2 instruction set for this which allows for operating on 256 bits at a time (8x 32-bit floats). Now when computing a single element of the result, it can multiply 8 pairs of 2 floats at a time. This is accomplished with the _mm256_fmadd_ps instruction, which multiplies 8 pairs of floats and then adds the result to another 8 floats. 
@@ -13,6 +14,13 @@ During the basic implementation, we loop over the elements in each column of m2,
 This only leads to better performance with large test cases (1000x1000 and above), because with smaller matrix sizes the entire matrix can easily fit in the cache and loads from memory aren't as big of a problem. Below the 1000x1000 size, this is almost identical to the basic implementation.
  
 ## Results
+
+## Results on different data percisions and different matrix sizes
+We compared the speed of running the program on double data type and foat data type. The previous is 64-bit floating point data and provides far more percision than float data type. We compared the time under different number of threads and different matrix sizes.
+
+<p align="center"> <img src="img/DataPrecisionResult.png" alt="drawing" width="75%"/> </p>
+
+As is shown in the graph, when matrix size is small, double datatype generally takes about th same time as float data type. As the size gets larger, double data type calculations takes more and more time. When calculating 10000*10000 matrix multiplications, it can take over 2 minutes longer using 1 thread and about 50 seconds longer using 4 threads.
 
 ## Running the code
 
