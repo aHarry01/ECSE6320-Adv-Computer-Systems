@@ -25,7 +25,7 @@ As is shown in the graph, when matrix size is small, double datatype generally t
 
 Generally, a larger difference in time is found in single thread than multi threads. We assume that the reason was that it's because the matrix is split into smaller ones, and for each partial matrix, the difference is not as larger as the time for calculating the whole matrix (we can see this in results for smaller matrix multiplications as well). 
 
-#### Results of performance of various improvements
+### Results of performance of various improvements
 We tested all combinations of the three improvements on 3 matrix sizes: 100x100, 1000x1000 and 2500x2500. The results are as shown in the following graph:
 
 <p align="center"> <img src="img/PerformanceResult.png" alt="drawing" width="75%"/> </p>
