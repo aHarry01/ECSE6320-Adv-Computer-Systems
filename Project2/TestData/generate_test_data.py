@@ -1,5 +1,5 @@
-width = 1500
-height = 1500
+width = 2500
+height = 2500
 outfile = f"M{width}x{height}.txt"
 
 if __name__ == "__main__":
