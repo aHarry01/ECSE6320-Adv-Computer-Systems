@@ -3,7 +3,9 @@
 ## Implementations
 
 ### Threading
-we use the build in multi-thread library for linux to do multi-thread calculations. 
+we use the build in multi-thread library for linux to do multi-thread calculations. First, matrix 1 is split into several partial matrices by rows. For example, if there are 4 rows and we use 4 threads, then each thread will take care of one row. Multiple the partial matrix with matrix 2, and then the thread will write the result to the correct location of the final results.
+
+Rows are distributed by calculating totalnumber of rows / number of thread, and the last thread takes the remain. We assume that in reality number of rows will be way larger than number of threads, so the last threads calculating at most threadnumber - 1 extra rows will have relatively little influence on time.
 
 ### SIMD
 We used the AVX2 instruction set for this which allows for operating on 256 bits at a time (8x 32-bit floats). Now when computing a single element of the result, it can multiply 8 pairs of 2 floats at a time. This is accomplished with the _mm256_fmadd_ps instruction, which multiplies 8 pairs of floats and then adds the result to another 8 floats. 
@@ -13,6 +15,7 @@ During the basic implementation, we loop over the elements in each column of m2,
 
 This only leads to better performance with large test cases (1000x1000 and above), because with smaller matrix sizes the entire matrix can easily fit in the cache and loads from memory aren't as big of a problem. Below the 1000x1000 size, this is almost identical to the basic implementation.
 
+## Test Results
 ## Results on different data percisions and different matrix sizes
 We compared the speed of running the program on double data type and foat data type. The previous is 64-bit floating point data and provides far more percision than float data type. We compared the time under different number of threads and different matrix sizes.
 
@@ -20,7 +23,9 @@ We compared the speed of running the program on double data type and foat data t
 
 As is shown in the graph, when matrix size is small, double datatype generally takes about th same time as float data type. As the size gets larger, double data type calculations takes more and more time. When calculating 10000x10000 matrix multiplications, it can take over 2 minutes longer using 1 thread and about 50 seconds longer using 4 threads.
 
-## Results of performance of various improvements
+Generally, a larger difference in time is found in single thread than multi threads. We assume that the reason was that it's because the matrix is split into smaller ones, and for each partial matrix, the difference is not as larger as the time for calculating the whole matrix (we can see this in results for smaller matrix multiplications as well). 
+
+#### Results of performance of various improvements
 We tested all combinations of the three improvements on 3 matrix sizes: 100x100, 1000x1000 and 2500x2500. The results are as shown in the following graph:
 
 <p align="center"> <img src="img/PerformanceResult.png" alt="drawing" width="75%"/> </p>
