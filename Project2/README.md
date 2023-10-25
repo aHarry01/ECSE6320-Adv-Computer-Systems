@@ -8,7 +8,7 @@ We use the build in multi-thread library for linux to do multi-thread calculatio
 Rows are distributed by calculating totalnumber of rows / number of thread, and the last thread takes the remain. We assume that in reality number of rows will be way larger than number of threads, so the last threads calculating at most threadnumber - 1 extra rows will have relatively little influence on time.
 
 ### SIMD
-We used the AVX2 instruction set for this which allows for operating on 256 bits at a time (8x 32-bit floats). Now when computing a single element of the result, it can multiply 8 pairs of 2 floats at a time. This is accomplished with the _mm256_fmadd_ps instruction, which multiplies 8 pairs of floats and then adds the result to another 8 floats. 
+We used the AVX2 instruction set for this which allows for operating on 256 bits at a time (8x 32-bit floats). Now when computing a single element of the result, it can multiply 8 pairs of 2 floats at a time (or 4 pairs of 2 doubles). This is accomplished with the _mm256_fmadd_ps (or _mm256_fmadd_pd) instruction, which multiplies 8 pairs of floats and then adds the result to another 8 floats. 
 
 ### Decrease cache miss rate
 During the basic implementation, we loop over the elements in each column of m2, which causes a separate memory load for each element. To avoid this, we can first take the transpose of m2 to make the columns become rows. Now when we want to loop through a column of m2, the elements are sequential in memory and we can take advantage of spatial locality. A memory load will also load nearby elements into cache so that reading subsequent elements in that row will result in a cache read rather than a memory read.
@@ -28,13 +28,15 @@ We tested all combinations of the three improvements on 3 matrix sizes: 100x100,
 
 <p align="center"> <img src="img/PerformanceResult.png" alt="drawing" width="100%"/> </p>
 
-<p align="center"> <img src="img/graph_performance.png" alt="drawing" width="100%"/> </p>
+<p align="center"> <img src="img/graph_performance.PNG" alt="drawing" width="65%"/> </p>
 
 As is shown, comparing to the native implementation, all methods to improve speed can improve the performance of the program to some extent.
 
 Multi-threading using 8 threads led to the largest performance improvement (4 seconds for a 2500x2500 matrix compared to 71 seconds for the naive implementation). Using SIMD instructions was also very good (7.33 seconds with a 2500x2500 matrix). This makes sense because these methods are both able to perform some calculations in parallel.
 
-The cache miss optimization led to the smallest performance improvement. At smaller matrix sizes, it didn't improve performance at all. However, it did run twice as fast as the naive implementation for the 2500x2500 matrix. This is because with smaller matrix sizes the entire matrix can easily fit in the cache so even the naive method will mostly read from cache. However, once the matrix gets larger than cache, this method starts to result in some improvements.
+The cache miss optimization led to the smallest performance improvement. At smaller matrix sizes (1000x1000 and below), it didn't improve performance at all. This is because with smaller matrix sizes the entire matrix can easily fit in the cache, so even the naive method will mostly read from cache. However, once the matrix gets larger than cache, this method starts to result in some improvements. For example, the cache miss optimization method completed the 2500x2500 matrix in half the time of the naive implementation.
+
+Overall, the best performance was with all three optimizations, which is expected since it benefits from several threads, SIMD instructions, and having fewer cache misses.
 
 ## Running the code
 
