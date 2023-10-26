@@ -34,7 +34,7 @@ The latency increased with a larger I/O depth, as the queueing theory predicts. 
 
 <p align="center"> <img src="graphs/latency_iodepth.PNG" alt="drawing" width="75%"/> </p>
 
-However, the bandwidth doesn't align with what queueing theory would predict. We would expect that with a larger queue, the bandwidth would increase. However, our results show the largest bandwidth at iodepth = 1 and a fairly constant bandwidth for other iodepths. It's possible that the I/O depth wasn't high enough to be show significant results or that fio was implemented
+However, the bandwidth doesn't align with what queueing theory would predict. We would expect that with a larger queue, the bandwidth would increase. However, our results show the largest bandwidth at iodepth = 1 and a fairly constant bandwidth for other iodepths. It's possible that the I/O depth wasn't high enough to be show significant results or that fio was implemented in a way that offsets the performance gains that should be seen by allowing more I/O requests to queue up.
 
 <p align="center"> <img src="graphs/throughput_iodepth.PNG" alt="drawing" width="75%"/> </p>
 
