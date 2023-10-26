@@ -22,7 +22,7 @@ The read and write latency are fairly constant compared to the percentage reads 
 
 <p align="center"> <img src="graphs/latency_percentreads.PNG" alt="drawing" width="75%"/> </p>
 
-Looking at the throughput, it looks like fio maintains a constant total throughput despite the mixture of reads and writes. This leads to a lower read throughput and a lower write throughput when the accesses are a mix between reads and writes, but overall performance was pretty constant for all cases.
+Looking at the throughput, it looks like fio maintains a constant total throughput despite the mixture of reads and writes. This leads to a lower read throughput and a lower write throughput when the accesses are a mix between reads and writes, but when added together they still amount to a similar overall total throughput. Overall performance was pretty constant for all cases.
 
 <p align="center"> <img src="graphs/throughput_percentreads.PNG" alt="drawing" width="75%"/> </p>
 
@@ -34,8 +34,12 @@ The latency increased with a larger I/O depth, as the queueing theory predicts. 
 
 <p align="center"> <img src="graphs/latency_iodepth.PNG" alt="drawing" width="75%"/> </p>
 
-However, the bandwidth doesn't align with what queueing theory would predict. We would expect that with a larger queue, the bandwidth would increase. However, our results show the largest bandwidth at iodepth = 1 and a fairly constant bandwidth for other iodepths.
+However, the bandwidth doesn't align with what queueing theory would predict. We would expect that with a larger queue, the bandwidth would increase. However, our results show the largest bandwidth at iodepth = 1 and a fairly constant bandwidth for other iodepths. It's possible that the I/O depth wasn't high enough to be show significant results or that fio was implemented
 
 <p align="center"> <img src="graphs/throughput_iodepth.PNG" alt="drawing" width="75%"/> </p>
 
 ## Conclusion
+
+To summarize our results, we noticed that the latency increases with a larger I/O depth and was mostly unaffected by read/write ratio. For bandwidth, we found that it increases with a larger data access size and also seems unaffected by read/write ratio. We had some unexpected behavior for throughput vs I/O queue depth, but theoretically it should increase as I/O depth increases.
+
+Our random write-only performance with a 4KB block size was 29k IOPS, which isn't as fast as the Intel Data Center NVMe SSD D7-P5600. But if it was faster, then it would probably be because the enterprise-grade SSD is optimized for reliability, endurance, or latency rather than focusing purely on throughput.
