@@ -1,6 +1,6 @@
 # Project 3
 
-We tested combinations of different block sizes (4KB, 16KB, 32KB and 128KB), % read accesses (0%, 50%, 70%, and 100%), and I/O depths (1, 32, 256, and 1024). For each combination, fio provides the read latency, write latency, read throughput and write throughput. All of the output data is in parsed_test_data.xls. 
+We tested combinations of different block sizes (4KB, 16KB, 32KB and 128KB), read-write ratios (0%, 50%, 70%, and 100% reads), and I/O depths (1, 32, 256, and 1024). For each combination, fio provides the read latency, write latency, read throughput and write throughput. All of the output data is in parsed_test_data.xls. 
 
 ## Data Access Size
 
