@@ -1,0 +1,8 @@
+Current thought:
+For the txt file given,
+First build a hash table and hash the strings into an integer.
+Then use an open library to compress the integers again and store the compressed data.
+    *Need to find a way to deal with conflicts
+    *https://github.com/lemire/FastPFor for further integer compression
+    *Another is to find the indecies: One thought is when compressing, parse the index to the end of the word, and then parse the words
+    *For 
