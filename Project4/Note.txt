@@ -3,6 +3,9 @@ For the txt file given,
 First build a hash table and hash the strings into an integer.
 Then use an open library to compress the integers again and store the compressed data.
     *Need to find a way to deal with conflicts
+    *https://cp-algorithms.com/string/string-hashing.html for string hashing
     *https://github.com/lemire/FastPFor for further integer compression
     *Another is to find the indecies: One thought is when compressing, parse the index to the end of the word, and then parse the words
     *For prefix searching, consider using a tree structure details still considerring
+
+Foe prefix searching, one option is to use a dictionary tree. 
