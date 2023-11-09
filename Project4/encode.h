@@ -3,7 +3,8 @@
 #include <string>
 using namespace std;
 
-
-void encode(string word, long index);
+uint64_t ColumnHash(string const& word);
+uint64_t Hash(string const& word);
+uint64_t encode(string word, long index);
 void decode(string encodedWord);
 #endif
