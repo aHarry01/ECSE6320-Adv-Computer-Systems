@@ -6,16 +6,19 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <unordered_map>
 
 #include <pthread.h>
-#include <immintrin.h>
+#include <zlib.h>
 
 using namespace std;
 
-const unsigned int WORDS_PER_THREAD = 10000000;
+const unsigned int WORDS_PER_THREAD = 20000000;
 const string FILE_PATH = "Column.txt";
-const string ENCODED_FILE_PATH = "EncodedColumn.txt";
+const string ENCODED_FILE_PATH = "EncodedColumn.bin";
 pthread_mutex_t mutex;  // A mutex to protect shared data
+
+unordered_map<string, uint64_t> columnMap;
 
 typedef struct EncodeInfo{
 public:
@@ -28,35 +31,60 @@ void* EncodeWords(void* arg){
     EncodeInfo* info = (EncodeInfo*)arg;
     string* words = info->words;
     unsigned int startIndex = info->startIndex, len = info->wordNum;
-    uint64_t *encodedValues = new uint64_t[WORDS_PER_THREAD];
+    vector<uint64_t> encodedValues;
 
     cout << "Thread start, index start from " << startIndex << endl;
 
     for(unsigned int i = 0; i < len; i++){
-        encodedValues[i] = ColumnHash(words[i]);
+        uint64_t hashValue = ColumnHash(words[i]);
+        encodedValues.push_back(hashValue);
+        columnMap.insert(make_pair(words[i], hashValue));
     }
 
-    // TODO: Further compress the value, and save them into a file
+    ofstream outfile;
+    outfile.open(ENCODED_FILE_PATH, ios::app | ios::binary);
+
+    // pthread_mutex_lock(&mutex);
+    // outfile.write(reinterpret_cast<const char*>(encodedValues.data()), encodedValues.size() * sizeof(uint64_t));
+    // outfile.close();
+
+    // Compress the data using zlib
+    const void* data_ptr = encodedValues.data();
+    const size_t data_size = encodedValues.size() * sizeof(uint64_t);
+
+    const int compression_level = Z_BEST_COMPRESSION;
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    deflateInit(&stream, compression_level);
+
+    stream.next_in = (Bytef*)data_ptr;
+    stream.avail_in = data_size;
+
+    std::vector<uint8_t> compressed_data;
+    compressed_data.resize(deflateBound(&stream, data_size));
+    stream.next_out = compressed_data.data();
+    stream.avail_out = compressed_data.size();
+
+    deflate(&stream, Z_FINISH);
+    deflateEnd(&stream);
 
     // Lock the mutex before accessing shared data
     pthread_mutex_lock(&mutex);
-    // Access shared data
-    ofstream outfile;
-    outfile.open(ENCODED_FILE_PATH, ios::app);
-    for(unsigned int i = 0; i < len; i++){
-        outfile << encodedValues[i] << " ";
-    }
+
+    outfile.write(reinterpret_cast<const char*>(compressed_data.data()), compressed_data.size());
     outfile.close();
-    cout << "Thread finish, index start from " << startIndex << ", Encoded " << len << " words" << endl;
+
     // Unlock the mutex
     pthread_mutex_unlock(&mutex); 
-
+    cout << "Thread finished" << endl;
     delete[] words;
     delete info;
     return NULL;
 }
 
-void EncodeFromFile(string filePath){
+unsigned int EncodeFromFile(string filePath){
     ifstream infile(filePath);
     if(!infile.is_open()){
         throw runtime_error("Unable to open file");
@@ -101,6 +129,7 @@ void EncodeFromFile(string filePath){
     }
     infile.close();
     cout << "Encode finished" << endl;
+    return wordCount;
 }
 
 int main(int argc, char* argv[]){
@@ -108,7 +137,39 @@ int main(int argc, char* argv[]){
     pthread_mutex_init(&mutex, NULL);
 
     
-    EncodeFromFile(FILE_PATH);
+    unsigned int num = EncodeFromFile(FILE_PATH);
+
+
+    // Test: read from the binary file generated
+    ifstream infile(ENCODED_FILE_PATH, ios::binary);
+    infile.seekg(0, std::ios::end);
+    std::streampos file_size = infile.tellg();
+    infile.seekg(0, std::ios::beg);
+
+    std::vector<uint8_t> data(file_size);
+    infile.read(reinterpret_cast<char*>(data.data()), file_size);
+    infile.close();
+
+    z_stream stream;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    inflateInit(&stream);
+
+    stream.next_in = data.data();
+    stream.avail_in = data.size();
+
+    std::vector<uint64_t> decompressed_data;
+    decompressed_data.resize(num + 1024); //Should be enough...
+
+    stream.next_out = reinterpret_cast<Bytef*>(decompressed_data.data());
+    stream.avail_out = decompressed_data.size() * sizeof(uint64_t);
+
+    inflate(&stream, Z_FINISH);
+    inflateEnd(&stream);
+
+
+    cout << decompressed_data[0] << endl;
 
     // Destroy the mutex
     pthread_mutex_destroy(&mutex);
