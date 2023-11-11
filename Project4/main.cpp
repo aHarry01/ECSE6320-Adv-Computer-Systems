@@ -15,9 +15,10 @@
 using namespace std;
 
 const unsigned int WORDS_PER_THREAD = 20000000;
-const string FILE_PATH = "Column2.txt";
+const string FILE_PATH = "Column.txt";
 const string ENCODED_FILE_PATH = "EncodedColumn.bin";
 const string COMPRESSED_FILE_PATH = "CompressedColumn.bin";
+const string WORD_TO_LOOKUP = "wociz";
 pthread_mutex_t mutex;  // A mutex to protect shared data
 
 unordered_map<string, uint64_t> columnMap;
@@ -66,6 +67,7 @@ unsigned int EncodeFromFile(string filePath){
     string word;
     vector<pthread_t*> threads;
     unsigned int i = 0, wordCount = 0;
+    auto start = std::chrono::high_resolution_clock::now();
     while(infile >> word){ 
         wordCount++;
         words[i] = word;
@@ -101,9 +103,11 @@ unsigned int EncodeFromFile(string filePath){
     for (unsigned int x = 0; x < threads.size(); x++){
         pthread_join(*threads[x], NULL);
     }
+    
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    cout << "Encode finished in " << elapsed.count() << " seconds, Compressing..." << endl;
     infile.close();
-    cout << "Encode finished, Compressing..." << endl;
-
     if (Compress(ENCODED_FILE_PATH, COMPRESSED_FILE_PATH) == Z_OK){
         remove(ENCODED_FILE_PATH.c_str());
         cout << "Compression finished" << endl;
@@ -113,7 +117,7 @@ unsigned int EncodeFromFile(string filePath){
 }
 
 //Search without using dictionary encoding for comparison purposes
-bool word_exists_no_encoding(const string &filePath, const string &query, vector<int> &indices){
+bool word_query_no_encoding(const string &filePath, const string &query, vector<int> &indices){
     ifstream infile(filePath);
     string word;
     auto start = std::chrono::high_resolution_clock::now();
@@ -140,43 +144,60 @@ bool word_exists_no_encoding(const string &filePath, const string &query, vector
 }
 
 // Check if a word exists and return indices of all occurences if it does
-bool word_exists(const string &query, vector<uint64_t> &values, vector<int> &indices){
+bool word_query(const string &query, vector<uint64_t> &values, vector<int> &indices, bool use_simd){
     bool ret = false;
     auto start = std::chrono::high_resolution_clock::now();
     if (columnMap.find(query) == columnMap.end()){
         cout << "Word not found" << endl;
-    } else {
-        // now find locations where this word can be found
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        cout << "Word lookup with encoding took " << elapsed.count() << " seconds" << endl;
+    } 
+    // Lookup locations using SIMD instructions
+    else if (use_simd) {
         uint64_t code = columnMap[query];
         // use SIMD instructions to compare 4 codes at a time
-        uint64_t* data_ptr = values.data();
         __m256i code_compare = _mm256_set_epi64x(code, code, code, code);
         __m256i mask = _mm256_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
         __m256i data;
         uint64_t results[4] = {0, 0, 0, 0};
-        for (int i = 0; i < values.size(); i+=4){
-            data = _mm256_load_si256((__m256i*) data_ptr);
+        for (int i = 0; i < values.size()-8; i+=4){
+            data = _mm256_loadu_si256((__m256i*) &values[i]);
             data = _mm256_cmpeq_epi64(data, code_compare);
             _mm256_maskstore_epi64((long long int*) results, mask, data);
-            // calculate indices from comparison results
+            //calculate indices from comparison results
             for (int x = i; x < i+4; x++){
                 if (results[x-i] != 0)
                     indices.push_back(x);
             }
-            data_ptr += 4;
         }
         cout << "Word found in " << indices.size() << " locations" << endl; 
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        cout << "Word lookup with encoding and SIMD took " << elapsed.count() << " seconds" << endl;
+    } 
+    // Lookup locations without SIMD instructions
+    else {
+        uint64_t code = columnMap[query];
+        for(int i = 0; i < values.size(); i++){
+            if (values[i] == code){
+                indices.push_back(i);
+            }
+        }
+        cout << "Word found in " << indices.size() << " locations" << endl; 
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        cout << "Word lookup with encoding took " << elapsed.count() << " seconds" << endl;
     }
-    auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    cout << "Word lookup with encoding took " << elapsed.count() << " seconds" << endl;
+
     return ret;
 }
 
-// void prefix_query(){
+// Get the locations of all words that begin with this query
+void prefix_query(){
     // use dictionary to get all the words that start with the prefix
-    // then use word_exists to get indices
-// }
+    // then use word_query to get indices
+}
 
 int main(int argc, char* argv[]){
     // Initialize the mutex
@@ -195,16 +216,19 @@ int main(int argc, char* argv[]){
     // ---- Queries
     // First measure the lookup speed with no encoding
     vector<int> indices;
-    word_exists_no_encoding(FILE_PATH, "hah", indices);
+    word_query_no_encoding(FILE_PATH, WORD_TO_LOOKUP, indices);
     // for (int i = 0; i < indices.size(); i++){
     //     cout << indices[i] << endl;
     // }
 
-    //Next measure the lookup speed with dictionary encoding
+    //Next measure the lookup speed with dictionary encoding  with and without SIMD 
     vector<int> indices2;
-    word_exists("hah", values, indices2);
+    word_query(WORD_TO_LOOKUP, values, indices2, false);
+    vector<int> indices3;
+    word_query(WORD_TO_LOOKUP, values, indices3, true);
     // for (int i = 0; i < indices2.size(); i++){
     //     cout << indices2[i] << endl;
     // }
 
+    // 
 }
