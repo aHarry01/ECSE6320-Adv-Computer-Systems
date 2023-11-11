@@ -68,6 +68,9 @@ int Compress(string ENCODED_FILE_PATH, string COMPRESSED_FILE_PATH)
     assert(ret == Z_STREAM_END);
 
     (void)deflateEnd(&strm);
+
+    fclose(data);
+    fclose(compressedData);
     return Z_OK;
 }
 
@@ -99,5 +102,6 @@ vector<uint64_t> Decompress(string compressedDataPath, unsigned int length)
 
     inflate(&stream, Z_FINISH);
     inflateEnd(&stream);
+    cout << "Decompress finished" << endl;
     return decompressed_data;
 }
