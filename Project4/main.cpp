@@ -7,6 +7,7 @@
 #include <chrono>
 #include <vector>
 #include <unordered_map>
+#include <immintrin.h>
 
 #include "pthread.h"
 #include "zlib.h"
@@ -14,7 +15,7 @@
 using namespace std;
 
 const unsigned int WORDS_PER_THREAD = 20000000;
-const string FILE_PATH = "Column.txt";
+const string FILE_PATH = "Column2.txt";
 const string ENCODED_FILE_PATH = "EncodedColumn.bin";
 const string COMPRESSED_FILE_PATH = "CompressedColumn.bin";
 pthread_mutex_t mutex;  // A mutex to protect shared data
@@ -111,6 +112,72 @@ unsigned int EncodeFromFile(string filePath){
     throw runtime_error("Compression failed");
 }
 
+//Search without using dictionary encoding for comparison purposes
+bool word_exists_no_encoding(const string &filePath, const string &query, vector<int> &indices){
+    ifstream infile(filePath);
+    string word;
+    auto start = std::chrono::high_resolution_clock::now();
+    int i = 0;
+    while(infile >> word){ 
+        if (word == query){
+            indices.push_back(i);
+        }
+        i++;
+    }
+
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    
+    bool ret = true;
+    if (indices.size() == 0){
+        cout << "Word not found" << endl;
+    } else {
+        cout << "Word found in " << indices.size() << " locations" << endl; 
+    }
+   
+    cout << "Word lookup with no encoding took " << elapsed.count() << " seconds" << endl;
+    return ret;
+}
+
+// Check if a word exists and return indices of all occurences if it does
+bool word_exists(const string &query, vector<uint64_t> &values, vector<int> &indices){
+    bool ret = false;
+    auto start = std::chrono::high_resolution_clock::now();
+    if (columnMap.find(query) == columnMap.end()){
+        cout << "Word not found" << endl;
+    } else {
+        // now find locations where this word can be found
+        uint64_t code = columnMap[query];
+        // use SIMD instructions to compare 4 codes at a time
+        uint64_t* data_ptr = values.data();
+        __m256i code_compare = _mm256_set_epi64x(code, code, code, code);
+        __m256i mask = _mm256_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
+        __m256i data;
+        uint64_t results[4] = {0, 0, 0, 0};
+        for (int i = 0; i < values.size(); i+=4){
+            data = _mm256_load_si256((__m256i*) data_ptr);
+            data = _mm256_cmpeq_epi64(data, code_compare);
+            _mm256_maskstore_epi64((long long int*) results, mask, data);
+            // calculate indices from comparison results
+            for (int x = i; x < i+4; x++){
+                if (results[x-i] != 0)
+                    indices.push_back(x);
+            }
+            data_ptr += 4;
+        }
+        cout << "Word found in " << indices.size() << " locations" << endl; 
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    cout << "Word lookup with encoding took " << elapsed.count() << " seconds" << endl;
+    return ret;
+}
+
+// void prefix_query(){
+    // use dictionary to get all the words that start with the prefix
+    // then use word_exists to get indices
+// }
+
 int main(int argc, char* argv[]){
     // Initialize the mutex
     pthread_mutex_init(&mutex, NULL);
@@ -121,4 +188,23 @@ int main(int argc, char* argv[]){
 
     vector<uint64_t> values = Decompress(COMPRESSED_FILE_PATH, num);
     cout << values.size() << endl;
+    // for (int i = 0; i < values.size(); i++){
+    //     cout << values[i] << endl;
+    // }
+
+    // ---- Queries
+    // First measure the lookup speed with no encoding
+    vector<int> indices;
+    word_exists_no_encoding(FILE_PATH, "hah", indices);
+    // for (int i = 0; i < indices.size(); i++){
+    //     cout << indices[i] << endl;
+    // }
+
+    //Next measure the lookup speed with dictionary encoding
+    vector<int> indices2;
+    word_exists("hah", values, indices2);
+    // for (int i = 0; i < indices2.size(); i++){
+    //     cout << indices2[i] << endl;
+    // }
+
 }
