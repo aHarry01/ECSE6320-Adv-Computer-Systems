@@ -7,6 +7,7 @@
 #include <chrono>
 #include <vector>
 #include <unordered_map>
+#include <set>
 #include <immintrin.h>
 
 #include "pthread.h"
@@ -18,7 +19,8 @@ const unsigned int WORDS_PER_THREAD = 20000000;
 const string FILE_PATH = "Column.txt";
 const string ENCODED_FILE_PATH = "EncodedColumn.bin";
 const string COMPRESSED_FILE_PATH = "CompressedColumn.bin";
-const string WORD_TO_LOOKUP = "wociz";
+const string WORD_TO_LOOKUP = "thsgtyw";
+const string PREFIX_TO_LOOKUP = "pik";
 pthread_mutex_t mutex;  // A mutex to protect shared data
 
 unordered_map<string, uint64_t> columnMap;
@@ -116,14 +118,22 @@ unsigned int EncodeFromFile(string filePath){
     throw runtime_error("Compression failed");
 }
 
+// ----- Single word search ------------
+
 //Search without using dictionary encoding for comparison purposes
 bool word_query_no_encoding(const string &filePath, const string &query, vector<int> &indices){
     ifstream infile(filePath);
     string word;
-    auto start = std::chrono::high_resolution_clock::now();
+    vector<string> words;
     int i = 0;
     while(infile >> word){ 
-        if (word == query){
+        words.push_back(word);
+    }
+
+    // don't include file loading in performance measuring
+    auto start = std::chrono::high_resolution_clock::now();
+    for(int i = 0; i < words.size(); i++){
+        if (words[i] == query){
             indices.push_back(i);
         }
         i++;
@@ -193,10 +203,86 @@ bool word_query(const string &query, vector<uint64_t> &values, vector<int> &indi
     return ret;
 }
 
-// Get the locations of all words that begin with this query
-void prefix_query(){
+// ----- Prefix search ------------
+
+// Get the locations of all words that begin with this prefix with no dictionary encoding
+void prefix_query_no_encoding(const string &filePath, const string &prefix, vector<int> &indices){
+
+    ifstream infile(filePath);
+    string word;
+    std::set<string> unique_words;
+    auto start = std::chrono::high_resolution_clock::now();
+    int i = 0;
+    while(infile >> word){ 
+        if (word.compare(0, prefix.size(), prefix) == 0){
+            indices.push_back(i);
+            if (unique_words.find(word) == unique_words.end()){
+                unique_words.insert(word);
+            }
+        }
+        i++; 
+    }
+
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    if (indices.size() == 0){
+        cout << "Prefix not found" << endl;
+    } else {
+        cout << "Prefix found in " << unique_words.size() << " unique words and " << indices.size() << " total locations" << endl; 
+    }
+   
+    cout << "Prefix lookup with no encoding took " << elapsed.count() << " seconds" << endl;
+}
+
+// Get the locations of all words that begin with this prefix with dictionary encoding
+void prefix_query(const string &prefix, vector<uint64_t> &values, vector<int> &indices, bool use_simd){
+
     // use dictionary to get all the words that start with the prefix
-    // then use word_query to get indices
+    vector<string> unique_words;
+    unordered_map<string, uint64_t>::iterator itr;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (itr = columnMap.begin(); itr != columnMap.end(); itr++){
+        // check if this word has the prefix
+        if ((itr->first).compare(0, prefix.size(), prefix) == 0){
+            unique_words.push_back(itr->first);
+            uint64_t code = itr->second;
+
+            // now search for the locations for each word
+            if (use_simd) {
+                // use SIMD instructions to compare 4 codes at a time
+                __m256i mask = _mm256_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
+                __m256i data;
+                uint64_t results[4] = {0, 0, 0, 0};
+                for (int i = 0; i < values.size()-8; i+=4){
+                        __m256i code_compare = _mm256_set_epi64x(code, code, code, code);
+                        data = _mm256_loadu_si256((__m256i*) &values[i]);
+                        data = _mm256_cmpeq_epi64(data, code_compare);
+                        _mm256_maskstore_epi64((long long int*) results, mask, data);
+                        //calculate indices from comparison results
+                        for (int x = i; x < i+4; x++){
+                            if (results[x-i] != 0)
+                                indices.push_back(x);
+                        }
+                }
+            } else {
+                for(int i = 0; i < values.size(); i++){
+                    if (values[i] == code){
+                        indices.push_back(i);
+                    }
+                }
+            }
+        }
+    }
+
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    if (indices.size() == 0){
+        cout << "Prefix not found" << endl;
+    } else {
+        cout << "Prefix found in " << unique_words.size() << " unique words and " << indices.size() << " total locations" << endl; 
+    }
+    cout << "Prefix lookup with encoding took " << elapsed.count() << " seconds" << endl;
 }
 
 int main(int argc, char* argv[]){
@@ -217,18 +303,17 @@ int main(int argc, char* argv[]){
     // First measure the lookup speed with no encoding
     vector<int> indices;
     word_query_no_encoding(FILE_PATH, WORD_TO_LOOKUP, indices);
-    // for (int i = 0; i < indices.size(); i++){
-    //     cout << indices[i] << endl;
-    // }
-
-    //Next measure the lookup speed with dictionary encoding  with and without SIMD 
     vector<int> indices2;
     word_query(WORD_TO_LOOKUP, values, indices2, false);
     vector<int> indices3;
     word_query(WORD_TO_LOOKUP, values, indices3, true);
-    // for (int i = 0; i < indices2.size(); i++){
-    //     cout << indices2[i] << endl;
-    // }
+
+    indices.clear();
+    indices2.clear();
+    indices3.clear();
+    prefix_query_no_encoding(FILE_PATH, PREFIX_TO_LOOKUP, indices);
+    prefix_query(PREFIX_TO_LOOKUP, values, indices2, false);
+    prefix_query(PREFIX_TO_LOOKUP, values, indices3, true);
 
     // 
 }
