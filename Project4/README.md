@@ -8,9 +8,11 @@ Because the data is now all integers instead of strings, we can used SIMD instru
 
 ## Results
 
-### Encoding 
+### Encoding and compressing
 
-The input file was "Column.txt" was 1GB. After both dictionary coding and compression, the resulting file is 0.8GB.
+The input file was "Column.txt" was 1GB. After both dictionary encoding, the output file is approximately the same size as the original file, and compression, the resulting file is 0.8GB, the compression ratio is about 20%.
+
+In fact, the hash function is designed based on the features of words in the columns. After checking the contents, all words in it are less than 10 characters. Therefore, we decided to use five bits to represent a letter, and 10 characters would at most take 50 bits, which can fit into a 64-bit uint64_t integer. One benefit is for this is that we can ensure no conflicts, and words with same hash values must be the same. In the program we uses the zlib liburary for compressing the data, but if possible, we can try to first manually chop the 14 bits from each integer before compressing, which can bring the compression ratio to at least 0.22, and then do further compression.
 
 The image shows the encoding time under different numbers of threads (more words/thread leads to fewer threads). The performance got worse if there were too many or not enough threads. Too many threads will result in more overhead as the CPU has to constantly be switching between threads. Too few threads and the benefits from splitting the work between threads will be too small.
 
