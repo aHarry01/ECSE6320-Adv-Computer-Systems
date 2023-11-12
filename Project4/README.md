@@ -14,6 +14,8 @@ The input file was "Column.txt" was 1GB. After both dictionary encoding, the out
 
 In fact, the hash function is designed based on the features of words in the columns. After checking the contents, all words in it are less than 10 characters. Therefore, we decided to use five bits to represent a letter, and 10 characters would at most take 50 bits, which can fit into a 64-bit uint64_t integer. One benefit is for this is that we can ensure no conflicts, and words with same hash values must be the same. In the program we uses the zlib liburary for compressing the data, but if possible, we can try to first manually chop the 14 bits from each integer before compressing, which can bring the compression ratio to at least 0.22, and then do further compression.
 
+The strategy to encode is to loop through all words in the file, and for every certain amount of words, we creae a new thread encode the files and write them into another output file. Then, after finishing encoding, we compress the output file.
+
 The image shows the encoding time under different numbers of threads (more words/thread leads to fewer threads). The performance got worse if there were too many or not enough threads. Too many threads will result in more overhead as the CPU has to constantly be switching between threads. Too few threads and the benefits from splitting the work between threads will be too small.
 
 <p align="center"> <img src="results/encoding_time.PNG" alt="drawing" width="80%"/> </p>
@@ -23,7 +25,7 @@ The single word query was much faster with the encoded data. This is because it'
 
 <p align="center"> <img src="results/single_word_query.PNG" alt="drawing" width="80%"/> </p>
 
-The prefix query was actually slower with the dictionary encoding. The unencoded implementation just loops through all the words and checks the first characters to see if it has the prefix. The encoded implementation first looks up the words in the hash table's keys. This makes it faster at finding the unique words with a given prefix. However, then it stil has to loop through all the values to find the indexes where these words occured in the column which ends up making it much slower than the unencoded implementation. As a result, then performance depended heavily on how many prefix matches there were (more unique, like with 'pik' made the performance much worse).
+The prefix query was actually slower with the dictionary encoding. The unencoded implementation just loops through all the words and checks the first characters to see if it has the prefix. The encoded implementation first looks up the words in the hash table's keys. This makes it faster at finding the unique words with a given prefix. However, then it still has to loop through all the values to find the indexes where these words occured in the column which ends up making it much slower than the unencoded implementation. As a result, then performance depended heavily on how many prefix matches there were (more unique, like with 'pik' made the performance much worse).
 
 <p align="center"> <img src="results/prefix_query.PNG" alt="drawing" width="80%"/> </p>
 
