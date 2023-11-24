@@ -1,0 +1,5 @@
+For convenience of experiment, in this project we will be testing using .bmp images.
+
+.bmp images are uncompressed image file that stores pixel by pixel.
+
+For thorough testing, we should try to implement compression for 4, 8, 16, 24-bit image files, as well as on gray-scale image and color image
