@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include "pthread.h"
 
 using namespace std;
