@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
+#include "lossy_compression.h"
+
 using namespace std;
 
 pthread_mutex_t mutex;
@@ -25,7 +27,10 @@ void* compressImg(void* arg) {
     int instruct = info->instruct;
     for(string f : fileList){
         // TO DO: Perform the image compression using the file Name...
-        cout << " " << f << endl;
+        vector<vector<vector<uint8_t>>> imgData;
+        read_uncompressed(f, imgData);
+        ofstream outfile;
+        outfile.open("f.bin", ios::app | ios::binary);
     }
 
     return NULL;
