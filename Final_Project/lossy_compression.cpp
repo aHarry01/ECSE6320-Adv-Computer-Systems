@@ -15,9 +15,8 @@
 
 #include "lossy_compression.h"
 
-pthread_mutex_t mutex;  // A mutex to protect shared data
-vector<vector<vector<uint8_t>>>* data_ptr; // input data
-vector<vector<vector<int8_t>>> output_data; // output data
+pthread_mutex_t mutexLossyComp;  // A mutex to protect shared data
+vector<vector<vector<uint8_t>>>* data_ptr;
 bool use_simd = false;
 
 typedef struct ThreadInfo{
@@ -38,7 +37,7 @@ void read_uncompressed(const string& filename, vector<vector<vector<uint8_t>>>& 
     ifstream file(filename);
     vector<uint8_t> buffer;
     if (!file) {
-        cout << "ERROR: Couldn't open input file " << filename << endl;
+        cerr << "ERROR: Couldn't open input file " << filename << endl;
         return;
     }
     file.seekg(0,std::ios::end);
@@ -50,7 +49,7 @@ void read_uncompressed(const string& filename, vector<vector<vector<uint8_t>>>& 
     
     // make sure this is a BMP file (first 2 chars are 'B' and 'M')
     if ((char) buffer[0] != 'B' || (char) buffer[1] != 'M'){
-        cout << "ERROR: Input file is not a BMP" << endl;
+        cerr << "ERROR: Input file is not a BMP" << endl;
         return;
     }
 
@@ -61,7 +60,7 @@ void read_uncompressed(const string& filename, vector<vector<vector<uint8_t>>>& 
         width = (buffer[19] << 8) | buffer[18];
         height = (buffer[21] << 8) | buffer[20];
         if (buffer[24] << 8 != 24) { // make sure there are 24 bits per pixel
-            cout << "ERROR: input file must have 24 bits per pixel" << endl;
+            cout << "ERROR: input file should have 24 bits per pixel" << endl;
             return;
         }
     } else{ // BITMAPINFOHEADER 
@@ -247,7 +246,7 @@ void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads){
     data_ptr = &data;
     // use_simd = ;
 
-    pthread_mutex_init(&mutex, NULL);
+    pthread_mutex_init(&mutexLossyComp, NULL);
     vector<pthread_t*> threads;
 
     // number of rows per thread has to be a multiple of 8
@@ -279,20 +278,18 @@ void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads){
         pthread_join(*threads[x], NULL);
     }
 
-    pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy(&mutexLossyComp);
 }
 
 
 // temporary main so I can test lossy compression separate from the rest
-int main(int argc, char* argv[]){
+// int main(int argc, char* argv[]){
 
-    // Read in uncompressed image data (BMP)
-    string filename = "test_images/small_test.bmp";
-    vector<vector<vector<uint8_t>>> data;
-    read_uncompressed(filename, data);
+//     // Read in uncompressed image data (BMP)
+//     string filename = "test_images/small_test.bmp";
+//     vector<vector<vector<uint8_t>>> data;
+//     read_uncompressed(filename, data);
 
-    precompute_DCT_constants();
-    //DCT_test();
-    lossy_compression(data, 1);
-}
+//     lossy_compression(data, 2);
+// }
 
