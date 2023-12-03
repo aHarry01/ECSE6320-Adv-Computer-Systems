@@ -6,18 +6,10 @@
 // can also compare compression quality
 // combine lossy with lossless to determine maximum compression??
 
-// JPEG compression:
-// Convert RGB to Y/Cb/Cr (Y = brightness, Cb/Cr are chrominance split into blue/red)
-// can downsample the Cb/Cr components (but don't have to...)
-// DCT to convert to frequency domain (use SIMD instructions)
-// Quantization (based on matrix, higher freqs can tolerate more quantization error)
-// this makes the data more compressible by making it more uniform/smaller numbers
-
 #include "lossy_compression.h"
 
 pthread_mutex_t mutexLossyComp;  // A mutex to protect shared data
 vector<vector<vector<uint8_t>>>* data_ptr; // input data
-vector<vector<vector<int8_t>>> dct_output_data; // output data after DCT
 bool use_simd = false;
 
 typedef struct ThreadInfo{
@@ -30,7 +22,6 @@ public:
 
 // DCT constants, pre-computed at the beginning of the compression
 float cosines[8][8];
-//float coeffs[8][8]; 
 float zero_coeff = 1/sqrt(2); // coefficient when either i or j is 0
 
 // Read in an uncompressed bitmap file
@@ -124,9 +115,9 @@ void precompute_DCT_constants(){
     for (int x = 0; x < 8; x++){
         for(int i = 0; i < 8; i++){
             cosines[x][i] = cos(((2*x + 1)*i*M_PI)/16);
-            cout << cosines[x][i] << " ";
+            //cout << cosines[x][i] << " ";
         }
-        cout << endl;
+        //cout << endl;
     }
 }
 
@@ -159,9 +150,9 @@ void basic_DCT(uint8_t tmp_y[8][8], uint8_t tmp_cb[8][8], uint8_t tmp_cr[8][8], 
             out_cb[i][j] = (int8_t)round(0.25*temp2 / chrominance_quantization[i][j]);
             out_cr[i][j] = (int8_t)round(0.25*temp3 / chrominance_quantization[i][j]);
             
-            cout << (int)out_y[i][j] << " "; //<< (0.25*temp) / luminance_quantization[i][j] << " ";
+            //cout << (int)out_y[i][j] << " "; //<< (0.25*temp) / luminance_quantization[i][j] << " ";
         }
-        cout << endl;
+        //cout << endl;
     }
 }
 
@@ -172,7 +163,7 @@ void run_length_coding(vector<int8_t>& out_y, vector<int8_t>& out_cb, vector<int
     out_y.push_back(0); out_y.push_back(tmp_y[0][0]);
     out_cb.push_back(0); out_cb.push_back(tmp_cb[0][0]);
     out_cr.push_back(0); out_cr.push_back(tmp_cr[0][0]);
-    cout << (int) tmp_y[0][0] << " ";
+    //cout << (int) tmp_y[0][0] << " ";
 
     int dir = -1;
     int r = 0; int c = 1;
@@ -205,18 +196,18 @@ void run_length_coding(vector<int8_t>& out_y, vector<int8_t>& out_cb, vector<int
                 num_zeros[2] = 0;
             }
 
-            cout << (int) tmp_y[r][c] << " ";
+            //cout << (int) tmp_y[r][c] << " ";
         }
         dir *= -1;
         if (r == 0 || r == 7) c++;
         else if (c == 0 || c == 7) r++;
     }
-    cout << endl;
+    // cout << endl;
 
-    for (int i = 0; i < out_y.size(); i+=2){
-        cout << "(" << (int)out_y[i] << "," << (int)out_y[i+1] <<  ")" << " ";
-    }
-    cout << endl;
+    // for (int i = 0; i < out_y.size(); i+=2){
+    //     cout << "(" << (int)out_y[i] << "," << (int)out_y[i+1] <<  ")" << " ";
+    // }
+    // cout << endl;
 
     
 }
@@ -224,18 +215,17 @@ void run_length_coding(vector<int8_t>& out_y, vector<int8_t>& out_cb, vector<int
 // Each thread processes one section of the input file
 void* process_block(void* args){
     ThreadInfo* info = (ThreadInfo*)args;
-    cout << info->rowStart << "   " << info->rowNum << endl;
+    //cout << info->rowStart << "   " << info->rowNum << endl;
 
     (info->encoded_y).resize(((*data_ptr)[0].size()/8)*(info->rowNum/8), vector<int8_t>(0));
     (info->encoded_cb).resize(((*data_ptr)[0].size()/8)*(info->rowNum/8), vector<int8_t>(0));
     (info->encoded_cr).resize(((*data_ptr)[0].size()/8)*(info->rowNum/8), vector<int8_t>(0));
 
-    // TODO: what if the height/width are not a multiple of 8? also, swap these...
     // loop through 8x8 blocks and process each
     int i = 0;
-    for (int c = 0; c < (*data_ptr)[0].size(); c+=8){
-        for (int r = info->rowStart; r < info->rowNum; r+=8){
-            cout <<"-----------------" << endl;
+    for (int r = info->rowStart; r < info->rowNum + info->rowStart; r+=8){
+        for (int c = 0; c < (*data_ptr)[0].size()-7; c+=8){            
+            //cout <<"-----------------" << endl;
             uint8_t tmp_y[8][8];
             uint8_t tmp_cb[8][8];
             uint8_t tmp_cr[8][8];
@@ -245,7 +235,7 @@ void* process_block(void* args){
             if (!use_simd){
                 int y, cb, cr = 0;
 
-                //TODO: can this be accelerated w/ SIMD? also, not quite right...
+                //TODO: can this be accelerated w/ SIMD?
                 for (int i = 0; i < 8; i++){
                     for(int j = 0; j < 8; j++){
                         // convert RGB pixels to Y/Cb/Cr
@@ -278,7 +268,6 @@ void* process_block(void* args){
 // lossy compression (JPEG)
 void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads, vector<vector<int8_t>>& encoded_data){
     cout << data.size() << " x " << data[0].size() << endl;
-    dct_output_data.resize(data.size(),vector<vector<int8_t> >(data[0].size(),vector<int8_t>(3)));
     data_ptr = &data;
     // use_simd = ;
 
@@ -333,23 +322,47 @@ void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads, v
 
 // temporary main so I can test lossy compression separate from the rest
 int main(int argc, char* argv[]){
+    int num_threads = 2;
+    string filename = "test_images/landscape1.bmp";
+    if (argc == 3){
+        filename = argv[1];
+        num_threads = stoi(argv[2]);;
+    }
 
     // Read in uncompressed image data (BMP)
-    string filename = "test_images/small_test.bmp";
     vector<vector<vector<uint8_t>>> data;
     read_uncompressed(filename, data);
 
+    // pad the image so that we have 8x8 blocks by repeating rows or columns as necessary
+    // (this is what JPEG does, the real image size would be included in the metadata
+    // so the zeros would be dropped when decompressing)
+    if (data.size() % 8 != 0 || data[0].size() % 8 != 0){
+        data.resize(((data.size()+7)/8)*8,vector<vector<uint8_t>>(((data[0].size()+7)/8)*8,vector<uint8_t>(3)));
+    }
+
+    // Do the lossy compression
     precompute_DCT_constants();
     vector<vector<int8_t>> encoded_data;
     encoded_data.resize(3, vector<int8_t>(0));
-    lossy_compression(data, 1, encoded_data);
+    lossy_compression(data, num_threads, encoded_data);
 
-    cout << endl << endl;
-    for (int j = 0; j < encoded_data[0].size(); j++){
-        cout << (int) encoded_data[0][j] << " ";
+    // cout << endl << endl;
+    // for (int j = 0; j < encoded_data[0].size(); j++){
+    //     cout << (int) encoded_data[0][j] << " ";
+    // }
+    // cout << endl;
+    int original_data_size = 0;
+    for(int i = 0; i < data.size(); i++){
+        for(int j = 0; j < data[i].size(); j++){
+            original_data_size += data[i][j].size();
+        }
     }
-    cout << endl;
-    cout << encoded_data[0].size() << endl;
+    cout << "Original data size (bytes) = " << original_data_size << endl;
+
+    int compressed_data_size = encoded_data[0].size() + encoded_data[1].size() + encoded_data[2].size();
+    cout << "Final data size (bytes) = " << compressed_data_size << endl;
+    cout << "Compression ratio = " << (float)original_data_size/compressed_data_size << endl;
+
 
     // TODO: compare sizes of original & compressed data
     // compare RLC of original and compressed data to show DCT increased compressibility
