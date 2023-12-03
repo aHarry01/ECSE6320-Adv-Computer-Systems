@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <cstring>
 #include "pthread.h"
 
 using namespace std;
