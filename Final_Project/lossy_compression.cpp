@@ -24,6 +24,8 @@ public:
 float cosines[8][8];
 float zero_coeff = 1/sqrt(2); // coefficient when either i or j is 0
 
+float coeff_matrix[8][8]; // only used when using SIMD instructions
+
 // Read in an uncompressed bitmap file
 // BMP files must be in uncompressed mode and represent pixels using RGB data w/ 24 bits per pixel
 void read_uncompressed(const string& filename, vector<vector<vector<uint8_t>>>& data){
@@ -121,6 +123,15 @@ void precompute_DCT_constants(){
     }
 }
 
+void precompue_DCT_coeff_matrix(){
+    for (int i =0 ; i < 8; i++){
+        for (int j =0; j < 8;j++){
+            if (i == 0) coeff_matrix[i][j] = 0.35355; 
+            else coeff_matrix[i][j] = (1/2.0)*cosines[j][i];
+        }
+    }
+}
+
 // DCT on an 8x8 block with no optimizations
 void basic_DCT(uint8_t tmp_y[8][8], uint8_t tmp_cb[8][8], uint8_t tmp_cr[8][8], int8_t out_y[8][8], int8_t out_cb[8][8], int8_t out_cr[8][8]){
     for (int i = 0; i < 8; i++){ // i is row
@@ -149,12 +160,145 @@ void basic_DCT(uint8_t tmp_y[8][8], uint8_t tmp_cb[8][8], uint8_t tmp_cr[8][8], 
             out_y[i][j] = (int8_t)round(0.25*temp / luminance_quantization[i][j]);
             out_cb[i][j] = (int8_t)round(0.25*temp2 / chrominance_quantization[i][j]);
             out_cr[i][j] = (int8_t)round(0.25*temp3 / chrominance_quantization[i][j]);
-            
+            //cout << (int)out_y[i][j] << " ";
             //cout << (int)out_y[i][j] << " "; //<< (0.25*temp) / luminance_quantization[i][j] << " ";
         }
         //cout << endl;
     }
+    //cout << endl;
+    // for (int i = 0; i < 8; i++){ // i is row
+    //     for(int j = 0; j < 8; j++){ // j is column
+    //         cout << (int) out_y[i][j] << " ";
+    //     } 
+    //     cout << endl;
+    // }
+    // cout << endl;
 }
+
+// DCT on an 8x8 block using SIMD instructions
+void SIMD_DCT(uint8_t tmp_y[8][8], uint8_t tmp_cb[8][8], uint8_t tmp_cr[8][8], int8_t out_y[8][8], int8_t out_cb[8][8], int8_t out_cr[8][8]){    
+    // first, load our matrix as floats
+    __m256 rows_y[8]; __m256 rows_cb[8]; __m256 rows_cr[8];
+    __m256i constant_subtract = _mm256_set_epi32(128, 128, 128, 128, 128, 128, 128, 128);
+    
+    for(int r = 0; r < 8; r++){
+        // convert to 32-bit integers, then subtract 128 from each, then convert to floats
+        rows_y[r] = _mm256_cvtepi32_ps(
+                    _mm256_sub_epi32(
+                        _mm256_cvtepu8_epi32(_mm_loadu_si128((__m128i*)(tmp_y[r]))), 
+                        constant_subtract
+                    ));
+        rows_cb[r] = _mm256_cvtepi32_ps(
+                     _mm256_sub_epi32(
+                        _mm256_cvtepu8_epi32(_mm_loadu_si128((__m128i*)(tmp_cb[r]))), 
+                        constant_subtract
+                    ));
+        rows_cr[r] = _mm256_cvtepi32_ps(
+                     _mm256_sub_epi32(
+                        _mm256_cvtepu8_epi32(_mm_loadu_si128((__m128i*)(tmp_cr[r]))), 
+                        constant_subtract
+                    ));
+    }
+
+    // the DCT can be done with 2 matrix multiplications:
+    //  temp_result = tmp_y*transpose(coeff_matrix)
+    //  out_y = coeff_matrix*temp_result
+
+    // temporary variables
+    __m256 fmadd_result_y; __m256 fmadd_result_cb;  __m256 fmadd_result_cr;
+    __m256 coeff_tmp;
+    float temp[8] = {0};
+    // stored as the TRANSPOSE of tmp_y*transpose(coeff_matrix)
+    float temp_result_y_T[8][8]; float temp_result_cb_T[8][8]; float temp_result_cr_T[8][8]; 
+
+    // first matrix multiplication, temp_result = tmp_y*transpose(coeff_matrix)
+    for (int i = 0; i < 8; i++){ // i is row
+        for(int j = 0; j < 8; j++){ // j is column
+		    fmadd_result_y = _mm256_set_ps(0,0,0,0,0,0,0,0);
+            fmadd_result_cb = _mm256_set_ps(0,0,0,0,0,0,0,0);
+            fmadd_result_cr = _mm256_set_ps(0,0,0,0,0,0,0,0);
+			
+			// use SIMD instructions to do the multiply & add operations
+			// each vectorized instruction can multiply/add 8 4-byte words 
+			// which is all we need since the matrix is always 8x8
+            coeff_tmp = _mm256_loadu_ps(coeff_matrix[j]);
+            fmadd_result_y = _mm256_fmadd_ps(rows_y[i], coeff_tmp, fmadd_result_y);
+			_mm256_storeu_ps(temp, fmadd_result_y);
+			// accumulate all the multiplications into the result
+			temp_result_y_T[j][i] = 0;
+			for (int k = 0; k < 8; k ++){
+				temp_result_y_T[j][i] += temp[k];
+			}	
+
+            fmadd_result_cb = _mm256_fmadd_ps(rows_cb[i], coeff_tmp, fmadd_result_cb);
+			_mm256_storeu_ps(temp, fmadd_result_cb);
+			// accumulate all the multiplications into the result
+			temp_result_cb_T[j][i] = 0;
+			for (int k = 0; k < 8; k ++){
+				temp_result_cb_T[j][i] += temp[k];
+			}	
+
+            fmadd_result_cr = _mm256_fmadd_ps(rows_cr[i], coeff_tmp, fmadd_result_cr);
+			_mm256_storeu_ps(temp, fmadd_result_cr);
+			// accumulate all the multiplications into the result
+			temp_result_cr_T[j][i] = 0;
+			for (int k = 0; k < 8; k ++){
+				temp_result_cr_T[j][i] += temp[k];
+			}	
+        }
+    }
+
+    float result = 0.0;
+    // second matrix multiplication, out_y = coeff_matrix*temp_result
+    for (int i = 0; i < 8; i++){ // i is row
+        for(int j = 0; j < 8; j++){ // j is column
+		    fmadd_result_y = _mm256_set_ps(0,0,0,0,0,0,0,0);
+            fmadd_result_cb = _mm256_set_ps(0,0,0,0,0,0,0,0);
+            fmadd_result_cr = _mm256_set_ps(0,0,0,0,0,0,0,0);
+			
+			// use SIMD instructions to do the multiply & add operations
+			// each vectorized instruction can multiply/add 8 4-byte words 
+			// which is all we need since the matrix is always 8x8
+            coeff_tmp = _mm256_loadu_ps(coeff_matrix[i]);
+            fmadd_result_y = _mm256_fmadd_ps(coeff_tmp, _mm256_loadu_ps(temp_result_y_T[j]), fmadd_result_y);
+			_mm256_storeu_ps(temp, fmadd_result_y);
+			// accumulate all the multiplications into the result
+			result = 0.0;
+			for (int k = 0; k < 8; k ++){
+				result += temp[k];
+			}	
+            out_y[i][j] = (int8_t)round(result/luminance_quantization[i][j]);
+
+            fmadd_result_cb = _mm256_fmadd_ps(coeff_tmp, _mm256_loadu_ps(temp_result_cb_T[j]), fmadd_result_cb);
+			_mm256_storeu_ps(temp, fmadd_result_cb);
+			// accumulate all the multiplications into the result
+			result = 0.0;
+			for (int k = 0; k < 8; k ++){
+				result += temp[k];
+			}	
+            out_cb[i][j] = (int8_t)round(result/chrominance_quantization[i][j]);
+
+            fmadd_result_cr = _mm256_fmadd_ps(coeff_tmp, _mm256_loadu_ps(temp_result_cr_T[j]), fmadd_result_cr);
+			_mm256_storeu_ps(temp, fmadd_result_cr);
+			// accumulate all the multiplications into the result
+			result = 0.0;
+			for (int k = 0; k < 8; k ++){
+				result += temp[k];
+			}	
+            out_cr[i][j] = (int8_t)round(result/chrominance_quantization[i][j]);
+        }
+    }
+
+    // Quantization and convert back to integers
+    // for (int i = 0; i < 8; i++){ // i is row
+    //     for(int j = 0; j < 8; j++){ // j is column
+    //         cout << (int) out_y[i][j]  << " ";
+    //     } 
+    //     cout << endl;
+    // }
+    // cout << endl;
+}
+
 
 // Do RLC on the output of the DCT
 // Each pair is (# of preceding zeros, value) and the special 0,0 means all the rest of the values in the block are 0
@@ -208,8 +352,6 @@ void run_length_coding(vector<int8_t>& out_y, vector<int8_t>& out_cb, vector<int
     //     cout << "(" << (int)out_y[i] << "," << (int)out_y[i+1] <<  ")" << " ";
     // }
     // cout << endl;
-
-    
 }
 
 // Each thread processes one section of the input file
@@ -232,28 +374,27 @@ void* process_block(void* args){
             int8_t out_y[8][8];
             int8_t out_cb[8][8];
             int8_t out_cr[8][8];
-            if (!use_simd){
-                int y, cb, cr = 0;
 
-                //TODO: can this be accelerated w/ SIMD?
-                for (int i = 0; i < 8; i++){
-                    for(int j = 0; j < 8; j++){
-                        // convert RGB pixels to Y/Cb/Cr
-                        y = 16 + (65.738/256)*((int)(*data_ptr)[r+i][c+j][0]) + (129.057/256)*(*data_ptr)[r+i][c+j][1] + (25.064/256)*(*data_ptr)[r+i][c+j][2];
-                        cb = 128 - (37.945/256)*(*data_ptr)[r+i][c+j][0] - (74.494/256)*(*data_ptr)[r+i][c+j][1] + (112.439/256)*(*data_ptr)[r+i][c+j][2];
-                        cr = 128 + (112.439/256)*(*data_ptr)[r+i][c+j][0] - (94.154/256)*(*data_ptr)[r+i][c+j][1] - (18.285/256)*(*data_ptr)[r+i][c+j][2];
-                        tmp_y[i][j] = y;
-                        tmp_cb[i][j] = cb;
-                        tmp_cr[i][j] = cr;
-                    }
+            int y = 0; int cb = 0; int cr = 0;
+
+            for (int i = 0; i < 8; i++){
+                for(int j = 0; j < 8; j++){
+                    // convert RGB pixels to Y/Cb/Cr
+                    y = 16 + (65.738/256)*((int)(*data_ptr)[r+i][c+j][0]) + (129.057/256)*(*data_ptr)[r+i][c+j][1] + (25.064/256)*(*data_ptr)[r+i][c+j][2];
+                    cb = 128 - (37.945/256)*(*data_ptr)[r+i][c+j][0] - (74.494/256)*(*data_ptr)[r+i][c+j][1] + (112.439/256)*(*data_ptr)[r+i][c+j][2];
+                    cr = 128 + (112.439/256)*(*data_ptr)[r+i][c+j][0] - (94.154/256)*(*data_ptr)[r+i][c+j][1] - (18.285/256)*(*data_ptr)[r+i][c+j][2];
+                    tmp_y[i][j] = y;
+                    tmp_cb[i][j] = cb;
+                    tmp_cr[i][j] = cr;
                 }
+            }
 
+            if (!use_simd){
                 // do the DCT & subsequent quantization on this block
                 basic_DCT(tmp_y, tmp_cb, tmp_cr, out_y, out_cb, out_cr);
-
             }
             else{
-                cout << "SIMD optimization not implemented yet" << endl;
+                SIMD_DCT(tmp_y, tmp_cb, tmp_cr, out_y, out_cb, out_cr);
             }
   
             // after DCT there should be more zeros/repeated values and the result should be a larger compression with the encoding
@@ -268,8 +409,10 @@ void* process_block(void* args){
 // lossy compression (JPEG)
 void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads, vector<vector<int8_t>>& encoded_data){
     cout << data.size() << " x " << data[0].size() << endl;
+    if (use_simd){
+        cout << "Using SIMD instructions" << endl;
+    }
     data_ptr = &data;
-    // use_simd = ;
 
     pthread_mutex_init(&mutexLossyComp, NULL);
     vector<pthread_t*> threads;
@@ -324,9 +467,13 @@ void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads, v
 int main(int argc, char* argv[]){
     int num_threads = 2;
     string filename = "test_images/landscape1.bmp";
-    if (argc == 3){
+    if (argc >= 3){
         filename = argv[1];
-        num_threads = stoi(argv[2]);;
+        num_threads = stoi(argv[2]);
+        if (argc == 4){
+            use_simd = (bool) (std::string(argv[3]) == "simd");
+        }
+            
     }
 
     // Read in uncompressed image data (BMP)
@@ -340,8 +487,10 @@ int main(int argc, char* argv[]){
         data.resize(((data.size()+7)/8)*8,vector<vector<uint8_t>>(((data[0].size()+7)/8)*8,vector<uint8_t>(3)));
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
     // Do the lossy compression
     precompute_DCT_constants();
+    if (use_simd) precompue_DCT_coeff_matrix();
     vector<vector<int8_t>> encoded_data;
     encoded_data.resize(3, vector<int8_t>(0));
     lossy_compression(data, num_threads, encoded_data);
@@ -351,6 +500,11 @@ int main(int argc, char* argv[]){
     //     cout << (int) encoded_data[0][j] << " ";
     // }
     // cout << endl;
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = finish - start;
+    cout << "Compression complete" << endl;
+	cout << "Took " << elapsed.count() << " seconds" << endl;
+
     int original_data_size = 0;
     for(int i = 0; i < data.size(); i++){
         for(int j = 0; j < data[i].size(); j++){

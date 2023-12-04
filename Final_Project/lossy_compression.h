@@ -7,6 +7,8 @@
 #include <fstream>
 #include <cmath>
 #include <cstring>
+#include <chrono>
+#include <immintrin.h>
 #include "pthread.h"
 
 using namespace std;
