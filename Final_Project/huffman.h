@@ -7,7 +7,9 @@
 #include <queue>
 #include <string>
 #include <stdint.h>
-
+#include <fstream>
+#include <iostream>
+#include <bitset>
 using namespace std;
 
 struct HuffmanNode{
@@ -25,9 +27,15 @@ struct CompFreq {
     }
 };
 
-void ParseData(vector<vector<vector<uint8_t>>>& data, unordered_map<int, int>& freq);
+void ReadBMP(const string &filename, vector<uint8_t>& buffer, unsigned int (&freq)[256]);
 
-HuffmanNode* BuildHuffmanTree(unordered_map<uint8_t, int> freq);
-
+HuffmanNode* BuildHuffmanTree(unsigned int (&freq)[256]);
 void BuildMapping(HuffmanNode* root, unordered_map<uint8_t, string>& table, string code);
+void BuildHeader(HuffmanNode* rt, vector<bool>& header);
+
+void WriteBitsToFile(const vector<bool>& bits, ofstream & outFile);
+
+HuffmanNode* Compress(const string &filename, const string &outputfile);
+
+void Decompress(const string &filename, const string &outputfile);
 #endif /* HUFFMAN_H_ */
