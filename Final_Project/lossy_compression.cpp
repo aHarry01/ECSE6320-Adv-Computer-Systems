@@ -7,7 +7,6 @@
 // combine lossy with lossless to determine maximum compression??
 
 #include "lossy_compression.h"
-#include "lossy_decompression.h"
 
 pthread_mutex_t mutexLossyComp;  // A mutex to protect shared data
 vector<vector<vector<uint8_t>>>* data_ptr; // input data
@@ -512,5 +511,4 @@ int main(int argc, char* argv[]){
     cout << "     Y-channel = " << encoded_data[0].size() << " bytes, Cb-channel = " << encoded_data[1].size() << " bytes. Cr-channel = " << encoded_data[2].size() << endl;
     cout << "Total Compression ratio = " << (float)original_data_size/compressed_data_size << endl;
 
-    decompress_and_save(encoded_data, bmp_header, data[0].size(), data.size(), "decompressed_output.bmp");
 }
