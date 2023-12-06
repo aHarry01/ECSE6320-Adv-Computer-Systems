@@ -7,6 +7,7 @@
 // combine lossy with lossless to determine maximum compression??
 
 #include "lossy_compression.h"
+#include "lossy_decompression.h"
 
 pthread_mutex_t mutexLossyComp;  // A mutex to protect shared data
 vector<vector<vector<uint8_t>>>* data_ptr; // input data
@@ -28,7 +29,7 @@ float coeff_matrix[8][8]; // only used when using SIMD instructions
 
 // Read in an uncompressed bitmap file
 // BMP files must be in uncompressed mode and represent pixels using RGB data w/ 24 bits per pixel
-void read_uncompressed(const string& filename, vector<vector<vector<uint8_t>>>& data){
+void read_uncompressed(const string& filename, vector<vector<vector<uint8_t>>>& data, vector<uint8_t>& header){
 
     // Read the file in
     ifstream file(filename);
@@ -117,9 +118,7 @@ void precompute_DCT_constants(){
     for (int x = 0; x < 8; x++){
         for(int i = 0; i < 8; i++){
             cosines[x][i] = cos(((2*x + 1)*i*M_PI)/16);
-            //cout << cosines[x][i] << " ";
         }
-        //cout << endl;
     }
 }
 
@@ -462,8 +461,7 @@ void lossy_compression(vector<vector<vector<uint8_t>>>& data, int num_threads, v
     pthread_mutex_destroy(&mutexLossyComp);
 }
 
-
-// temporary main so I can test lossy compression separate from the rest
+// main to test lossy compression separate from the rest
 int main(int argc, char* argv[]){
     int num_threads = 2;
     string filename = "test_images/landscape1.bmp";
@@ -478,7 +476,8 @@ int main(int argc, char* argv[]){
 
     // Read in uncompressed image data (BMP)
     vector<vector<vector<uint8_t>>> data;
-    read_uncompressed(filename, data);
+    vector<uint8_t> bmp_header;
+    read_uncompressed(filename, data, bmp_header);
 
     // pad the image so that we have 8x8 blocks by repeating rows or columns as necessary
     // (this is what JPEG does, the real image size would be included in the metadata
@@ -495,11 +494,6 @@ int main(int argc, char* argv[]){
     encoded_data.resize(3, vector<int8_t>(0));
     lossy_compression(data, num_threads, encoded_data);
 
-    // cout << endl << endl;
-    // for (int j = 0; j < encoded_data[0].size(); j++){
-    //     cout << (int) encoded_data[0][j] << " ";
-    // }
-    // cout << endl;
 	auto finish = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = finish - start;
     cout << "Compression complete" << endl;
@@ -515,9 +509,8 @@ int main(int argc, char* argv[]){
 
     int compressed_data_size = encoded_data[0].size() + encoded_data[1].size() + encoded_data[2].size();
     cout << "Final data size (bytes) = " << compressed_data_size << endl;
-    cout << "Compression ratio = " << (float)original_data_size/compressed_data_size << endl;
+    cout << "     Y-channel = " << encoded_data[0].size() << " bytes, Cb-channel = " << encoded_data[1].size() << " bytes. Cr-channel = " << encoded_data[2].size() << endl;
+    cout << "Total Compression ratio = " << (float)original_data_size/compressed_data_size << endl;
 
-
-    // TODO: compare sizes of original & compressed data
-    // compare RLC of original and compressed data to show DCT increased compressibility
+    decompress_and_save(encoded_data, bmp_header, data[0].size(), data.size(), "decompressed_output.bmp");
 }
