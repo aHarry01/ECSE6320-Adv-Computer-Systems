@@ -7,8 +7,6 @@
 
 ## Lossy Image Compression
 
-*work in progress*
-
 The lossy compression was based on JPEG compression. The steps used here for compressing an uncompressed .bmp image are:
 
 1. Convert RGB to YCbCr (illuminance Y and 2 color channels Cb/Cr). The color channels can be compressed more because the human eye is more sensitive to illuminance than color.
@@ -20,16 +18,19 @@ Note that actual JPEGs compress the DC term at [0][0] differently since it's typ
 
 A full JPEG implementation would then do a specific type of Huffman coding after the zero-length coding. We implemented Huffman coding in the lossless compression section in a slightly different way than JPEG needs it done, so our lossy compression stops at run length coding. Also not implemented here is the standard format with all sorts of headers/metadata that JPEG requires. 
 
-TODO: show example, cite sources
-
-### Optimizations 
-
-TODO: Threads, SIMD?
+To speed up compression, multithreading was used to process blocks of the image separately and SIMD instructions were used to speed up computing the DCT.
 
 ### Results
 
-TODO
+The compression ratio is the ratio of the size of the uncompressed image data to the compressed image data. The graph shows that for images with lots of high-frequency components (pollock.bmp), the compression ratio is much smaller than images without as many sharp changes (ocean.bmp).
 
-To compile current lossy_compression test:
+<p align="center"> <img src="test_results/lossy_compression_ratio.png" alt="drawing" width="85%"/> </p>
 
-g++ -pthread -march=native lossy_compression.cpp -o lossy_test.o
+Most of the compression was in the color channels Cb and Cr, since the illuminance channel (Y) can't be compressed as much without losing significant image quality.
+
+<p align="center"> <img src="test_results/lossy_ycbcr_components.png" alt="drawing" width="85%"/> </p>
+
+The compression time was sped up significantly by increasing threads, up to about 16-24 threads where the improvement levels off. SIMD instructions also resulted in some speedup.
+
+<p align="center"> <img src="test_results/lossy_compression_speed_landscape1.png" alt="drawing" width="85%"/> </p>
+
