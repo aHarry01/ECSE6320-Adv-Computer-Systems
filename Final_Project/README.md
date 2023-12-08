@@ -15,6 +15,18 @@ The testings of lossless image compression uses an implemented compressing algor
 
 4. Write the length of the header, and the header to the output file. Replace each byte with its corresponding huffman code, and write to the output file.
 
+### Decompression
+In the generated file, the first two bytes specify the length of the header stream. Then, the next that number of bits would be read and reconstruct the huffman tree. The rest of the parts would be read sequentially and along with the huffman tree, reconstruct the original file.
+
+* This part is still under developing, but I checked a smaller file manually, and the compressed file is correct by byte.
+
+### Results
+The huffman encoding is very dependent on the image, images with dominent colors have a higher compression ratio. The following graph shows the result on each testing graph.
+<p align="center"> <img src="test_results/huffman_compression_ratio.jpg" alt="drawing" width="85%"/> </p>
+
+There are also methods where SIMD can be used to accelerate the process. Generally, using SIMD can speed up the process by about 50%.
+<p align="center"> <img src="test_results/huffman_compression_speed.jpg" alt="drawing" width="85%"/> </p>
+
 ## Lossy Image Compression
 
 The lossy compression was based on JPEG compression. The steps used here for compressing an uncompressed .bmp image are:
@@ -43,4 +55,5 @@ Most of the compression was in the color channels Cb and Cr, since the illuminan
 The compression time was sped up significantly by increasing threads, up to about 16-24 threads where the improvement levels off. SIMD instructions also resulted in some speedup.
 
 <p align="center"> <img src="test_results/lossy_compression_speed_landscape1.png" alt="drawing" width="85%"/> </p>
+
 

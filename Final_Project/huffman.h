@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <bitset>
+#include <immintrin.h>
 using namespace std;
 
 struct HuffmanNode{
@@ -27,15 +28,23 @@ struct CompFreq {
     }
 };
 
+// Structure to store SIMD vectors of symbols and corresponding codes
+struct SimdCode {
+    __m128i symbols;
+    __m128i codes;
+};
+
 void ReadBMP(const string &filename, vector<uint8_t>& buffer, unsigned int (&freq)[256]);
 
 HuffmanNode* BuildHuffmanTree(unsigned int (&freq)[256]);
 void BuildMapping(HuffmanNode* root, unordered_map<uint8_t, string>& table, string code);
+void BuildMappingSIMD(HuffmanNode* root, unordered_map<uint8_t, string>& table, string code);
 void BuildHeader(HuffmanNode* rt, vector<bool>& header);
 
 void WriteBitsToFile(const vector<bool>& bits, ofstream & outFile);
+void WriteBitsToFileSIMD(const vector<bool>& bits, ostream& outFile);
 
-HuffmanNode* Compress(const string &filename, const string &outputfile);
+HuffmanNode* Compress(const string &filename, const string &outputfile, bool useSIMD);
 
 void Decompress(const string &filename, const string &outputfile);
 #endif /* HUFFMAN_H_ */

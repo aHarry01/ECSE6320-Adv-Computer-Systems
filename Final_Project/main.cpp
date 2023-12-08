@@ -6,12 +6,13 @@
 #include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
-#include "lossy_compression.h"
+// #include "lossy_compression.h"
+#include "huffman.h"
 
 using namespace std;
 
 pthread_mutex_t mutex;
-const int NUM_THREADS = 8;
+const int NUM_THREADS = 1;
 typedef struct CompressInfo{
 public:
     vector<string> fileList;
@@ -27,10 +28,8 @@ void* compressImg(void* arg) {
     int instruct = info->instruct;
     for(string f : fileList){
         // TO DO: Perform the image compression using the file Name...
-        vector<vector<vector<uint8_t>>> imgData;
-        read_uncompressed(f, imgData);
-        ofstream outfile;
-        outfile.open("f.bin", ios::app | ios::binary);
+        string outFileName = f.substr(f.length()-8, f.length()-4)+".hfm";
+        Compress(f, outFileName, false);
     }
 
     return NULL;
