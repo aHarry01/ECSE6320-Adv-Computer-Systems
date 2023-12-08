@@ -5,6 +5,16 @@
 
 ## Lossless image compression
 
+The testings of lossless image compression uses an implemented compressing algorithm based on Huffman Endcoding. more specific details are as following:
+
+1. Read in the BMP file in byte, keep monitoring the frequency of each btye. Since we check the occurance of bytes, the frequency table woule be limited to at most 256 elements.
+
+2. Using the obtained frequency table, construct a huffman tree. A piority queue is used to speed up the process. Then, for each different byte value, a unnique code is generated, the more frequently the value appears in the original file, the shorter the code will be. 
+
+3. Generate a header for the huffman tree so that when decompressing, the computer can reconstruct the huffman tree.
+
+4. Write the length of the header, and the header to the output file. Replace each byte with its corresponding huffman code, and write to the output file.
+
 ## Lossy Image Compression
 
 *work in progress*
